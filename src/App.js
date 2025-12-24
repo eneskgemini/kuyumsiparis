@@ -20,7 +20,7 @@ import {
   ShoppingBag, Search, Plus, Trash, LogOut,
   X, Star, RefreshCcw, Folder, ChevronDown, Printer, Download, Save, Check, CheckCheck,
   ArrowUp, Upload, User, Key, ChevronLeft, ChevronRight, AlertTriangle, Users, Send, Settings, Box, CheckCircle, Calendar, Minus, Pencil, Activity, TrendingUp, CheckSquare, FileText, Wand2,
-  Grid, AlignCenter, MousePointer2, Image as ImageIcon, Monitor, Paperclip
+  Grid, AlignCenter, MousePointer2, Image as ImageIcon, Monitor, Paperclip, Bell
 } from 'lucide-react';
 
 // FileIcon alias'ını manuel oluşturuyoruz (FileText kullanarak)
@@ -35,7 +35,7 @@ const NOTIFICATION_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869
 const CATEGORIES = ["Anasayfa", "Yüzük", "Kolye", "Küpe", "Bileklik", "Set", "Haç"];
 const SUBCATEGORIES = {
   "Yüzük": ["AS-B", "SMG", "SA-Y", "SB-M", "SB-Y", "SH-R", "SH-Y", "SK-Y", "SM-I", "SM-Y", "SR-G", "SS-H", "SS-Y", "ST-I", "ST-O"],
-  "Kolye": ["SA-K", "SH-H", "SK-A", "SK-B", "SK-E"],
+  "Kolye": ["SA-K", "SH-H", "SK-A", "SK-E"],
   "Küpe": ["SH-K", "SK-M", "SM-K", "SR-E"],
   "Bileklik": ["SP-B"],
   "Set": ["SB-S", "SH-E", "SS-A", "SV-K"],
@@ -350,14 +350,15 @@ const SalesCalendar = ({ orders, selectedDate, onDateChange }) => {
         return days;
     };
 
+    // UPDATE: h-fit added to prevent vertical stretching
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible relative">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible relative h-fit">
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                 <h3 className="font-bold text-slate-700 flex items-center gap-2"><Calendar size={18} className="text-blue-500"/> Satış Takvimi</h3>
                 <div className="flex items-center gap-2"><button onClick={() => changeMonth(-1)}><ChevronLeft size={20}/></button><span className="text-sm font-bold w-32 text-center">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</span><button onClick={() => changeMonth(1)}><ChevronRight size={20}/></button></div>
             </div>
             <div className="grid grid-cols-7 text-center text-xs font-bold text-slate-500 bg-slate-100 py-2 border-b border-slate-200"><div>Pzt</div><div>Sal</div><div>Çar</div><div>Per</div><div>Cum</div><div>Cmt</div><div>Paz</div></div>
-            <div className="grid grid-cols-7 relative">{renderDays()}{selectedDayDetail && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-lg shadow-2xl border-2 border-yellow-400 w-64 p-4"><h4 className="font-bold mb-2">{selectedDayDetail.day} {monthNames[currentDate.getMonth()]}</h4>{selectedDayDetail.orders.map((o,i)=><div key={i} className="flex justify-between text-xs border-b py-1"><span>{o.name}</span><span className="font-bold">{o.gram}gr</span></div>)}<button onClick={()=>setSelectedDayDetail(null)} className="mt-2 w-full bg-slate-100 text-xs py-1 font-bold">Kapat</button></div>}</div>
+            <div className="grid grid-cols-7 relative">{renderDays()}{selectedDayDetail && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-lg shadow-2xl border-2 border-yellow-400 w-64 p-4"><h4 className="font-bold mb-2">{selectedDayDetail.day} {monthNames[currentDate.getMonth()]}</h4>{selectedDayDetail.orders.map((o,i)=><div key={i} className="flex justify-between text-xs border-b py-1"><span className="capitalize">{o.name}</span><span className="font-bold">{o.gram}gr</span></div>)}<button onClick={()=>setSelectedDayDetail(null)} className="mt-2 w-full bg-slate-100 text-xs py-1 font-bold">Kapat</button></div>}</div>
             <div className="p-4 bg-green-50 border-t border-green-100 flex justify-between items-center"><div className="flex items-center gap-2 text-green-800"><TrendingUp size={20} /><span className="font-bold text-sm">Bu Ay Toplam</span></div><div className="text-xl font-bold text-green-700">{monthlyTotalGram} gr</div></div>
         </div>
     );
@@ -366,11 +367,13 @@ const SalesCalendar = ({ orders, selectedDate, onDateChange }) => {
 const MonthlyPerformanceView = ({ orders, selectedDate }) => {
     const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
     const currentDate = selectedDate || new Date();
-    
+    const [previewImage, setPreviewImage] = useState(null);
+
     const monthlyStats = useMemo(() => {
         let totalGram = 0;
         let orderCount = 0;
-        const categoryStats = {};
+        const productCounts = {};
+        const productImages = {};
 
         orders.forEach(order => {
             if(order.status === 'delivered' && order.createdAt && order.createdAt.seconds) {
@@ -381,21 +384,49 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
                         order.items.forEach(i => {
                             const gram = (parseGram(i.gram) * (parseInt(i.quantity) || 1));
                             totalGram += gram;
-                            const cat = i.category || 'Diğer';
-                            if (!categoryStats[cat]) categoryStats[cat] = { count: 0, gram: 0 };
-                            categoryStats[cat].count += (parseInt(i.quantity) || 1);
-                            categoryStats[cat].gram += gram;
+                            
+                            const code = i.code || 'Bilinmeyen';
+                            if (!productCounts[code]) productCounts[code] = 0;
+                            productCounts[code] += (parseInt(i.quantity) || 1);
+                            
+                            if (!productImages[code] && i.imageUrl && i.imageUrl !== DEFAULT_LOGO_URL) {
+                                productImages[code] = i.imageUrl;
+                            }
                         });
                     }
                 }
             }
         });
         
-        return { totalGram, orderCount, categoryStats };
+        const topProducts = Object.entries(productCounts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 10)
+            .map(([code, count]) => ({
+                code,
+                count,
+                imageUrl: productImages[code]
+            }));
+        
+        return { totalGram, orderCount, topProducts };
     }, [orders, currentDate]);
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full relative">
+            {previewImage && (
+                // UPDATE: Changed absolute to fixed with high z-index
+                <div 
+                    className="fixed inset-0 z-[500] bg-black/80 flex items-center justify-center p-4 cursor-pointer backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => setPreviewImage(null)}
+                >
+                    <div className="relative bg-white p-2 rounded-lg max-w-sm w-full">
+                        <img src={previewImage} className="w-full h-auto rounded max-h-[80vh] object-contain mx-auto" alt="Preview"/>
+                        <div className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1">
+                            <X size={20}/>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
             <div className="p-4 bg-slate-50 border-b border-slate-200">
                 <h3 className="font-bold text-slate-700 flex items-center gap-2">
                     <Activity size={18} className="text-purple-600"/> 
@@ -405,7 +436,7 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
             <div className="p-6">
                 <div className="grid grid-cols-2 gap-4 mb-6">
                     <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 text-center">
-                        <div className="text-purple-600 text-xs font-bold uppercase mb-1">Teslim Edilen Sipariş</div>
+                        <div className="text-purple-600 text-xs font-bold uppercase mb-1">Toplam Sevkiyat</div>
                         <div className="text-3xl font-bold text-purple-800">{monthlyStats.orderCount}</div>
                     </div>
                     <div className="bg-green-50 p-4 rounded-xl border border-green-100 text-center">
@@ -414,23 +445,27 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
                     </div>
                 </div>
                 
-                <h4 className="font-bold text-slate-600 text-sm mb-3">Kategori Dağılımı</h4>
-                <div className="space-y-3">
-                    {Object.entries(monthlyStats.categoryStats).length > 0 ? (
-                        Object.entries(monthlyStats.categoryStats)
-                        .sort(([,a], [,b]) => b.gram - a.gram)
-                        .map(([cat, stats]) => (
-                            <div key={cat} className="flex items-center justify-between text-sm border-b border-slate-50 pb-2">
-                                <div className="flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-                                    <span className="font-medium text-slate-700">{cat}</span>
-                                    <span className="text-xs text-slate-400">({stats.count} adet)</span>
+                <h4 className="font-bold text-slate-600 text-sm mb-3">En Çok Satılan 10 Model</h4>
+                <div className="space-y-2">
+                    {monthlyStats.topProducts.length > 0 ? (
+                        monthlyStats.topProducts.map((item, index) => (
+                            <div key={item.code} className="flex items-center justify-between text-sm border-b border-slate-50 pb-2 hover:bg-slate-50 rounded px-2 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold ${index < 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-500'}`}>
+                                        {index + 1}
+                                    </span>
+                                    <button 
+                                        onClick={() => item.imageUrl && setPreviewImage(item.imageUrl)}
+                                        className={`font-medium text-slate-700 ${item.imageUrl ? 'hover:text-blue-600 hover:underline cursor-pointer' : 'cursor-default'}`}
+                                    >
+                                        {item.code}
+                                    </button>
                                 </div>
-                                <div className="font-bold text-slate-800">{stats.gram.toFixed(2)} gr</div>
+                                <div className="font-bold text-slate-800">{item.count} Adet</div>
                             </div>
                         ))
                     ) : (
-                        <div className="text-center text-slate-400 py-4 text-sm italic">Bu ay henüz teslimat yok.</div>
+                        <div className="text-center text-slate-400 py-4 text-sm italic">Bu ay henüz satış yok.</div>
                     )}
                 </div>
             </div>
@@ -441,7 +476,7 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
 // ==========================================
 // FILE: src/components/Modules/MessagingModule.js
 // ==========================================
-const MessagingModule = ({ appId, currentUserProfile }) => {
+const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
     const [messages, setMessages] = useState([]);
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
@@ -478,6 +513,16 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
         });
         return () => { unsubUsers(); unsubMsgs(); };
     }, [appId, currentUserProfile]);
+
+    // Handle deep linking to a chat
+    useEffect(() => {
+        if (targetChatUser && users.length > 0) {
+            const foundUser = users.find(u => u.uid === targetChatUser);
+            if (foundUser) {
+                setSelectedUser(foundUser);
+            }
+        }
+    }, [targetChatUser, users]);
     
     useEffect(() => {
         if (selectedUser && messages.length > 0) {
@@ -1080,25 +1125,53 @@ const AIStudio = () => {
 // FILE: src/components/Admin/AdminSubViews.js
 // ==========================================
 
-const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-        <h2 className="text-2xl font-bold text-slate-800">Panel Özeti</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <div className="text-slate-500 text-sm font-bold mb-1">Toplam Ürün</div>
-                <div className="text-3xl font-bold text-slate-800">{products.length}</div>
+const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) => {
+    
+    // Atölyedeki (Preparing) siparişlerin sayısını ve gramajını hesapla
+    const workshopStats = useMemo(() => {
+        const preparingOrders = orders.filter(o => o.status === 'preparing');
+        let totalGrams = 0;
+        
+        preparingOrders.forEach(order => {
+            if (order.items) {
+                order.items.forEach(item => {
+                    const gram = parseGram(item.gram);
+                    const qty = parseInt(item.quantity) || 1;
+                    totalGrams += (gram * qty);
+                });
+            }
+        });
+        
+        return {
+            count: preparingOrders.length,
+            grams: totalGrams.toFixed(2)
+        };
+    }, [orders]);
+
+    return (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            <h2 className="text-2xl font-bold text-slate-800">Panel Özeti</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="text-slate-500 text-sm font-bold mb-1">Toplam Ürün</div>
+                    <div className="text-3xl font-bold text-slate-800">{products.length}</div>
+                </div>
+                {/* Değiştirilen Kart: Atölyedeki Siparişler */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="text-slate-500 text-sm font-bold mb-1">Atölyedeki Sipariş</div>
+                    <div className="flex items-end gap-2">
+                         <div className="text-3xl font-bold text-slate-800">{workshopStats.count}</div>
+                         <div className="text-sm font-bold text-slate-400 mb-1">({workshopStats.grams} gr)</div>
+                    </div>
+                </div>
             </div>
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <div className="text-slate-500 text-sm font-bold mb-1">Toplam Sipariş</div>
-                <div className="text-3xl font-bold text-slate-800">{orders.length}</div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <SalesCalendar orders={orders} selectedDate={dashboardDate} onDateChange={setDashboardDate} />
+                <MonthlyPerformanceView orders={orders} selectedDate={dashboardDate} />
             </div>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SalesCalendar orders={orders} selectedDate={dashboardDate} onDateChange={setDashboardDate} />
-            <MonthlyPerformanceView orders={orders} selectedDate={dashboardDate} />
-        </div>
-    </div>
-);
+    );
+};
 
 const AdminProductManager = ({ products, editingId, startEditing, cancelEditing, handleDeleteProduct, handleAddProduct, newProduct, setNewProduct, dragActive, handleDrag, handleDrop, isLoading, logoUrl }) => {
     const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, productId: null });
@@ -1318,6 +1391,99 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
     const [isLoading, setIsLoading] = useState(false);
     const [editingId, setEditingId] = useState(null); 
     const scrollContainerRef = useRef(null); 
+    const [notifications, setNotifications] = useState([]);
+    const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+    const [targetChatUser, setTargetChatUser] = useState(null);
+
+    // Bildirim Dinleyicileri
+    useEffect(() => {
+        if (!currentUserProfile) return;
+
+        // 1. Teslim Tarihi Yaklaşan Siparişleri Kontrol Et (3 gün kala)
+        const checkUpcomingOrders = () => {
+            const today = new Date();
+            const upcoming = orders.filter(order => {
+                if (order.status === 'delivered' || !order.deliveryDate) return false;
+                const delivery = new Date(order.deliveryDate);
+                const diffTime = delivery - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays <= 3 && diffDays > 0;
+            });
+
+            const orderNotifications = upcoming.map(o => ({
+                id: `order-${o.id}`,
+                type: 'warning',
+                title: 'Teslimat Yaklaşıyor',
+                message: `${o.customerName} siparişinin teslimine ${Math.ceil((new Date(o.deliveryDate) - today)/(1000*60*60*24))} gün kaldı.`,
+                time: new Date()
+            }));
+            
+            setNotifications(prev => {
+                // Mevcut olmayanları ekle
+                const existingIds = new Set(prev.map(n => n.id));
+                const newOnes = orderNotifications.filter(n => !existingIds.has(n.id));
+                return [...newOnes, ...prev];
+            });
+        };
+
+        checkUpcomingOrders();
+    }, [orders]);
+
+    useEffect(() => {
+        // 2. Yeni Mesajları Dinle
+        const q = query(
+            collection(db, 'artifacts', appId, 'public', 'data', 'messages'), 
+            where('receiverId', '==', currentUserProfile.uid),
+            where('read', '==', false),
+            orderBy('createdAt', 'desc'),
+            limit(10)
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    const msg = change.doc.data();
+                    // Sadece yeni gelenler için (son 1 dk içinde) ses çal
+                    const isRecent = msg.createdAt && (new Date() - new Date(msg.createdAt.seconds * 1000)) < 60000;
+                    
+                    if (isRecent) {
+                        try {
+                            const audio = new Audio(NOTIFICATION_SOUND_URL);
+                            audio.play().catch(e => console.log("Ses çalma hatası:", e));
+                        } catch (e) {
+                            console.error("Audio error", e);
+                        }
+                    }
+
+                    setNotifications(prev => {
+                        const exists = prev.some(n => n.id === change.doc.id);
+                        if (exists) return prev;
+                        return [{
+                            id: change.doc.id,
+                            type: 'message',
+                            senderId: msg.senderId,
+                            title: `${msg.senderName} size mesaj gönderdi`,
+                            message: `${msg.content.substring(0, 30)}${msg.content.length>30?'...':''}`,
+                            time: msg.createdAt ? new Date(msg.createdAt.seconds * 1000) : new Date()
+                        }, ...prev];
+                    });
+                }
+            });
+        });
+
+        return () => unsubscribe();
+    }, [appId, currentUserProfile]);
+
+    const handleNotificationClick = (notification) => {
+        // UPDATE: Bildirimi okundu olarak işaretle (listeden kaldır)
+        setNotifications(prev => prev.filter(n => n.id !== notification.id));
+
+        if (notification.type === 'message' && notification.senderId) {
+            setTargetChatUser(notification.senderId);
+            setActiveTab('messages');
+        }
+        setIsNotificationOpen(false);
+    };
 
     const handleLogout = async () => { 
         if (currentUserProfile && currentUserProfile.uid) {
@@ -1383,13 +1549,59 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 relative" ref={scrollContainerRef}>
-                {activeTab === 'dashboard' && <AdminDashboard products={products} orders={orders} dashboardDate={dashboardDate} setDashboardDate={setDashboardDate} />}
-                {activeTab === 'products' && <AdminProductManager products={products} editingId={editingId} startEditing={startEditing} cancelEditing={cancelEditing} handleDeleteProduct={handleDeleteProduct} handleAddProduct={handleAddProduct} newProduct={newProduct} setNewProduct={setNewProduct} dragActive={dragActive} handleDrag={handleDrag} handleDrop={handleDrop} isLoading={isLoading} logoUrl={logoUrl} />}
-                {activeTab === 'orders' && <AdminOrderManager orders={orders} onCreateNewOrder={onCreateNewOrder} onViewOrder={onViewOrder} handleUpdateStatus={handleUpdateStatus} handleDeleteOrder={handleDeleteOrder} />}
-                {activeTab === 'social' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-slate-800 mb-4">Stüdyo</h2><div className="h-[600px]"><AIStudio /></div></div>}
-                {activeTab === 'messages' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-slate-800 mb-4">Mesajlar</h2><MessagingModule appId={appId} currentUserProfile={currentUserProfile} /></div>}
-                {activeTab === 'settings' && <AdminSettings logoUrl={logoUrl} handleLogoUpload={handleLogoUpload} />}
+            <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+                {/* Bildirimler - Absolute Positioning */}
+                <div className="absolute top-4 right-8 z-50">
+                    <div className="relative">
+                        <button 
+                            onClick={() => setIsNotificationOpen(!isNotificationOpen)} 
+                            className="p-2 text-slate-500 hover:text-slate-800 rounded-full relative transition-colors bg-transparent"
+                        >
+                            <Bell size={24} />
+                            {notifications.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>}
+                        </button>
+                        
+                        {isNotificationOpen && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setIsNotificationOpen(false)}></div>
+                                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in slide-in-from-top-2">
+                                    <div className="p-3 border-b border-slate-50 font-bold text-sm text-slate-700">Bildirimler</div>
+                                    <div className="max-h-80 overflow-y-auto">
+                                        {notifications.length === 0 ? (
+                                            <div className="p-4 text-center text-xs text-slate-400">Yeni bildirim yok</div>
+                                        ) : (
+                                            notifications.map((n, i) => (
+                                                <div 
+                                                    key={i} 
+                                                    onClick={() => handleNotificationClick(n)}
+                                                    className={`p-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer ${n.type === 'message' ? 'bg-blue-50/50' : 'bg-yellow-50/50'}`}
+                                                >
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <span className="font-bold text-xs text-slate-800">{n.title}</span>
+                                                        <span className="text-[10px] text-slate-400">{n.time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                    </div>
+                                                    <div className="text-xs text-slate-600 line-clamp-2">{n.message}</div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                    {notifications.length > 0 && (
+                                        <button onClick={() => setNotifications([])} className="w-full py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 border-t border-slate-100">Tümünü Temizle</button>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-8 relative" ref={scrollContainerRef}>
+                    {activeTab === 'dashboard' && <AdminDashboard products={products} orders={orders} dashboardDate={dashboardDate} setDashboardDate={setDashboardDate} />}
+                    {activeTab === 'products' && <AdminProductManager products={products} editingId={editingId} startEditing={startEditing} cancelEditing={cancelEditing} handleDeleteProduct={handleDeleteProduct} handleAddProduct={handleAddProduct} newProduct={newProduct} setNewProduct={setNewProduct} dragActive={dragActive} handleDrag={handleDrag} handleDrop={handleDrop} isLoading={isLoading} logoUrl={logoUrl} />}
+                    {activeTab === 'orders' && <AdminOrderManager orders={orders} onCreateNewOrder={onCreateNewOrder} onViewOrder={onViewOrder} handleUpdateStatus={handleUpdateStatus} handleDeleteOrder={handleDeleteOrder} />}
+                    {activeTab === 'social' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-slate-800 mb-4">Stüdyo</h2><div className="h-[600px]"><AIStudio /></div></div>}
+                    {activeTab === 'messages' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-slate-800 mb-4">Mesajlar</h2><MessagingModule appId={appId} currentUserProfile={currentUserProfile} targetChatUser={targetChatUser} /></div>}
+                    {activeTab === 'settings' && <AdminSettings logoUrl={logoUrl} handleLogoUpload={handleLogoUpload} />}
+                </div>
             </div>
         </div>
     );
@@ -1887,7 +2099,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 
   return (
     <div className="flex h-screen overflow-hidden relative">
-        {showEmptyCartModal && <div className="fixed inset-0 z-[300] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowEmptyCartModal(false)}><div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full text-center"><div className="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4"><ShoppingBag size={32} className="text-yellow-500"/></div><h3 className="text-xl font-bold text-slate-800 mb-2">Sepetiniz Boş</h3><button onClick={() => setShowEmptyCartModal(false)} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm w-full">Tamam</button></div></div>}
+        {showEmptyCartModal && <div className="fixed inset-0 z-[300] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowEmptyCartModal(false)}><div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full text-center"><div className="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4"><AlertTriangle size={32} className="text-yellow-500"/></div><h3 className="text-xl font-bold text-slate-800 mb-2">Uyarı</h3><p className="text-slate-500 text-sm mb-4">Lütfen listeyi hazırlamak için en az 1 model ekleyiniz.</p><button onClick={() => setShowEmptyCartModal(false)} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm w-full">Tamam</button></div></div>}
         {isAccountModalOpen && <UserProfileModal user={user} isOpen={isAccountModalOpen} onClose={() => setIsAccountModalOpen(false)} />}
         
         <div className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 z-20 shadow-xl relative">
