@@ -281,7 +281,7 @@ const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDel
                         <div className="font-bold text-xs truncate text-slate-800">{product.code}</div>
                         <div className="text-[10px] text-slate-500 font-bold">{product.gram} gr</div>
                         
-                        <button onClick={() => startEditing(product)} className="absolute top-1 right-8 bg-blue-500 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-blue-600" title="Düzenle"><Pencil size={12}/></button>
+                        <button onClick={() => startEditing(product)} className="absolute top-1 right-8 bg-blue-50 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-blue-600" title="Düzenle"><Pencil size={12}/></button>
                         <button onClick={() => onDeleteClick(product.id)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600" title="Sil"><Trash size={12}/></button>
                     </div>
                 ))}
@@ -1550,8 +1550,9 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
             </div>
 
             <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
-                {/* Bildirimler - Absolute Positioning */}
-                <div className="absolute top-4 right-8 z-50">
+                {/* Bildirimler - Absolute Positioning - GÜNCELLENDİ */}
+                {/* activeTab ürün yönetimi veya siparişler ise top-24 (aşağıda), değilse top-4 (yukarıda) */}
+                <div className={`absolute right-8 z-50 transition-all duration-300 ease-in-out ${(activeTab === 'products' || activeTab === 'orders') ? 'top-20' : 'top-4'}`}>
                     <div className="relative">
                         <button 
                             onClick={() => setIsNotificationOpen(!isNotificationOpen)} 
@@ -2065,6 +2066,37 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
       await signOut(auth); 
       window.location.reload(); 
   };
+
+  // YÖNETİM PANELİ ERİŞİM KONTROLÜ (GÜNCELLENDİ)
+  const isAdmin = useMemo(() => {
+    if (!currentUserData) return false;
+
+    // DEBUG: Konsola veriyi yazdırarak kontrol edelim
+    console.log("Kullanıcı Yetki Kontrolü:", currentUserData);
+
+    const roleRaw = currentUserData.role;
+    const positionRaw = currentUserData.position;
+
+    // Rol diziyse veya stringse hepsini küçük harfe çevirip birleşik string yapalım
+    let roleStr = "";
+    if (Array.isArray(roleRaw)) roleStr = roleRaw.join(" ").toLowerCase();
+    else roleStr = (roleRaw || "").toString().toLowerCase();
+
+    const positionStr = (positionRaw || "").toString().toLowerCase();
+
+    // İzin verilen anahtar kelimeler
+    const allowedKeywords = [
+        'admin', 'manager', 'ceo', 'owner', 'sahip', 'kurucu', 
+        'yonetici', 'yönetici', 'administrator', 'baskan', 'başkan'
+    ];
+
+    // Rol veya pozisyon bu kelimelerden birini içeriyor mu?
+    const hasPermission = allowedKeywords.some(keyword => 
+        roleStr.includes(keyword) || positionStr.includes(keyword)
+    );
+    
+    return hasPermission;
+  }, [currentUserData]);
   
   const filteredProducts = useMemo(() => { 
       if (!products) return []; 
@@ -2113,7 +2145,14 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                     </div>
                 ))}
             </div>
-            <div className="p-4 border-t border-slate-800 bg-slate-950"><button onClick={() => setIsAdminOpen(true)} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-bold transition-colors"><Settings size={16}/> Yönetim Paneli</button></div>
+            {/* GÜNCELLEME: Sadece admin rolüne sahip kullanıcılar için Yönetim Paneli butonunu göster */}
+            {isAdmin && (
+                <div className="p-4 border-t border-slate-800 bg-slate-950">
+                    <button onClick={() => setIsAdminOpen(true)} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-bold transition-colors">
+                        <Settings size={16}/> Yönetim Paneli
+                    </button>
+                </div>
+            )}
         </div>
 
         <div className="flex-1 flex flex-col bg-slate-50 relative overflow-hidden">
