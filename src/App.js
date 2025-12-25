@@ -20,7 +20,7 @@ import {
   ShoppingBag, Search, Plus, Trash, LogOut,
   X, Star, RefreshCcw, Folder, ChevronDown, Printer, Download, Save, Check, CheckCheck,
   ArrowUp, Upload, User, Key, ChevronLeft, ChevronRight, AlertTriangle, Users, Send, Settings, Box, CheckCircle, Calendar, Minus, Pencil, Activity, TrendingUp, CheckSquare, FileText, Wand2,
-  Grid, AlignCenter, MousePointer2, Image as ImageIcon, Monitor, Paperclip, Bell
+  Grid, AlignCenter, MousePointer2, Image as ImageIcon, Monitor, Paperclip, Bell, Loader2
 } from 'lucide-react';
 
 // FileIcon alias'ını manuel oluşturuyoruz (FileText kullanarak)
@@ -103,7 +103,7 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                const MAX_SIZE = 2000; 
+                const MAX_SIZE = 1200; // Optimize edilmiş boyut
                 if (width > MAX_SIZE || height > MAX_SIZE) {
                     const ratio = Math.min(MAX_SIZE / width, MAX_SIZE / height);
                     width *= ratio;
@@ -116,11 +116,12 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 ctx.fillRect(0, 0, width, height);
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                let quality = 0.85; 
+                let quality = 0.7; // Optimize edilmiş kalite
                 let dataUrl = canvas.toDataURL('image/jpeg', quality);
-                const MAX_CHARS = 1000000; 
+                const MAX_CHARS = 900000; // Firestore limitinin hemen altı (yaklaşık 900KB)
                 
-                while (dataUrl.length > MAX_CHARS && quality > 0.2) {
+                // Çok agresif sıkıştırma gerekirse
+                while (dataUrl.length > MAX_CHARS && quality > 0.3) {
                     quality -= 0.1;
                     dataUrl = canvas.toDataURL('image/jpeg', quality);
                 }
@@ -138,6 +139,17 @@ const processFile = (file) => new Promise((resolve, reject) => {
 
 const handleDownload = async (url, filename) => {
     try {
+        // Base64 ise direkt indir
+        if (url.startsWith('data:')) {
+             const link = document.createElement('a');
+             link.href = url;
+             link.download = filename || 'dosya';
+             document.body.appendChild(link);
+             link.click();
+             document.body.removeChild(link);
+             return;
+        }
+
         const response = await fetch(url);
         const blob = await response.blob();
         const blobUrl = window.URL.createObjectURL(blob);
@@ -483,6 +495,12 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
     const [newMessage, setNewMessage] = useState("");
     const [previewImage, setPreviewImage] = useState(null); 
     const [deleteConfig, setDeleteConfig] = useState({ isOpen: false, type: null, id: null, title: '', message: '' });
+    
+    // Upload States
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [dragActive, setDragActive] = useState(false); // Sürükle bırak state'i
+    const fileInputRef = useRef(null);
 
     const messagesEndRef = useRef(null); 
     const scrollContainerRef = useRef(null); 
@@ -555,6 +573,103 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
     
     const handleSendMessage = async (e) => { e.preventDefault(); if(!newMessage.trim() || !selectedUser) return; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), { content: newMessage, senderId: currentUserProfile.uid, senderName: currentUserProfile.displayName || currentUserProfile.email, senderEmail: currentUserProfile.email, receiverId: selectedUser.uid, receiverName: selectedUser.displayName || selectedUser.email, createdAt: serverTimestamp(), read: false, type: 'text' }); setNewMessage(""); };
     
+    // GÜNCELLENMİŞ: Ortak Yükleme Fonksiyonu
+    const uploadFile = async (file) => {
+        if (!file) return;
+        if (!selectedUser) {
+            alert("Lütfen önce bir kişi seçiniz.");
+            return;
+        }
+
+        setIsUploading(true);
+        // "Dosya gönderiliyor yazmasın" -> Bildirimleri kaldırdık, sadece buton üzerinde state olacak.
+
+        try {
+            // Görseller için Base64 dönüşümü (Storage yerine Firestore)
+            if (file.type.startsWith('image/')) {
+                const processed = await processFile(file); // Sıkıştır ve Base64'e çevir
+                
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), {
+                    content: 'Görsel paylaşıldı',
+                    senderId: currentUserProfile.uid,
+                    senderName: currentUserProfile.displayName || currentUserProfile.email,
+                    senderEmail: currentUserProfile.email,
+                    receiverId: selectedUser.uid,
+                    receiverName: selectedUser.displayName || selectedUser.email,
+                    createdAt: serverTimestamp(),
+                    read: false,
+                    type: 'image',
+                    imageUrl: processed.base64,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type
+                });
+                setIsUploading(false);
+                if(fileInputRef.current) fileInputRef.current.value = null;
+            } else {
+                // Diğer dosyalar için (PDF vb.)
+                // Küçük dosyaları Base64 yapalım (1MB altı)
+                if (file.size < 1048576) {
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        const base64 = e.target.result;
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), {
+                            content: file.name,
+                            senderId: currentUserProfile.uid,
+                            senderName: currentUserProfile.displayName || currentUserProfile.email,
+                            senderEmail: currentUserProfile.email,
+                            receiverId: selectedUser.uid,
+                            receiverName: selectedUser.displayName || selectedUser.email,
+                            createdAt: serverTimestamp(),
+                            read: false,
+                            type: 'file',
+                            fileUrl: base64, 
+                            fileName: file.name,
+                            fileSize: file.size,
+                            fileType: file.type
+                        });
+                        setIsUploading(false);
+                        if(fileInputRef.current) fileInputRef.current.value = null;
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    // Büyük dosyalarda uyarı ver (Storage bu ortamda güvenilmez)
+                    alert("Çok büyük dosyalar bu ortamda gönderilemez. Lütfen 1MB altı dosya seçiniz.");
+                    setIsUploading(false);
+                }
+            }
+        } catch (err) {
+            console.error("Yükleme hatası:", err);
+            alert("Mesaj gönderilemedi.");
+            setIsUploading(false);
+        }
+    };
+
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        uploadFile(file);
+    };
+
+    // GÜNCELLENMİŞ: Sürükle Bırak Fonksiyonları
+    const handleDrag = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true);
+        } else if (e.type === "dragleave") {
+            setDragActive(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            uploadFile(e.dataTransfer.files[0]);
+        }
+    };
+
     const triggerDelete = (type, id = null) => {
         setDeleteConfig({
             isOpen: true,
@@ -622,7 +737,25 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
                     ))}
                 </div>
             </div>
-            <div className="flex-1 flex flex-col bg-slate-50/30 relative">
+            
+            <div 
+                className="flex-1 flex flex-col bg-slate-50/30 relative" 
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+            >
+                 {/* Drag & Drop Overlay */}
+                 {dragActive && selectedUser && (
+                    <div className="absolute inset-0 z-[100] bg-blue-500/10 backdrop-blur-sm border-2 border-dashed border-blue-500 flex flex-col items-center justify-center pointer-events-none animate-in fade-in duration-200">
+                        <div className="bg-white p-6 rounded-full shadow-xl mb-4 text-blue-600">
+                            <Upload size={48} />
+                        </div>
+                        <h3 className="text-xl font-bold text-blue-900">Dosyayı Buraya Bırakın</h3>
+                        <p className="text-blue-700 font-medium mt-1">{selectedUser.displayName} kişisine gönderilecek</p>
+                    </div>
+                 )}
+
                  {selectedUser ? (
                     <>
                         <div className="p-3 bg-white border-b flex justify-between items-center font-bold text-slate-800">
@@ -635,7 +768,8 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
                                 <button onClick={()=>{setSelectedUser(null)}} className="text-slate-400 hover:text-slate-600 p-2"><X size={18}/></button>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 custom-scrollbar" ref={scrollContainerRef}>
+                        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 custom-scrollbar relative" ref={scrollContainerRef}>
+                            
                             {messages.filter(m => (m.senderId === currentUserProfile.uid && m.receiverId === selectedUser.uid) || (m.senderId === selectedUser.uid && m.receiverId === currentUserProfile.uid)).map(m => (
                                 <div key={m.id} className={`flex ${m.senderId === currentUserProfile.uid ? 'justify-end' : 'justify-start'} group relative items-end gap-2`}>
                                     
@@ -654,7 +788,7 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
                                             <div className="overflow-hidden rounded-lg relative group/img">
                                                 <img 
                                                     src={m.imageUrl} 
-                                                    className="w-full h-auto max-h-64 object-cover cursor-pointer" 
+                                                    className="w-full h-auto max-h-64 object-cover cursor-pointer bg-slate-100" 
                                                     onClick={()=>setPreviewImage(m.imageUrl)}
                                                     onLoad={() => scrollToBottom()} 
                                                     loading="lazy"
@@ -668,20 +802,22 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
                                                 </button>
                                             </div>
                                         ) : m.type === 'file' ? (
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-slate-700/20 p-2 rounded-lg shrink-0">
-                                                    <FileIcon size={24} />
+                                            <div className="flex items-center gap-3 min-w-[200px]">
+                                                <div className="bg-slate-700/20 p-2.5 rounded-lg shrink-0">
+                                                    <FileIcon size={28} className={m.senderId === currentUserProfile.uid ? 'text-blue-200' : 'text-slate-500'} />
                                                 </div>
-                                                <div className="overflow-hidden min-w-0">
-                                                    <div className="font-bold truncate text-xs mb-0.5">{m.fileName}</div>
-                                                    <div className="text-[10px] opacity-70">{(m.fileSize / 1024 / 1024).toFixed(1)} MB</div>
+                                                <div className="overflow-hidden min-w-0 flex-1">
+                                                    <div className="font-bold truncate text-xs mb-0.5" title={m.fileName}>{m.fileName}</div>
+                                                    <div className="text-[10px] opacity-70">
+                                                        {m.fileSize ? (m.fileSize / 1024 / 1024).toFixed(2) + ' MB' : 'Dosya'}
+                                                    </div>
                                                 </div>
                                                 <button 
                                                     onClick={() => handleDownload(m.fileUrl, m.fileName)}
-                                                    className="ml-2 p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors shrink-0" 
+                                                    className="p-2 bg-white/20 hover:bg-white/40 rounded-full transition-colors shrink-0" 
                                                     title="İndir"
                                                 >
-                                                    <Download size={16} />
+                                                    <Download size={18} />
                                                 </button>
                                             </div>
                                         ) : (
@@ -702,8 +838,18 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
                             <div ref={messagesEndRef}></div>
                         </div>
                         <form onSubmit={handleSendMessage} className="p-3 bg-white border-t flex gap-2 items-center">
+                            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                            <button 
+                                type="button" 
+                                onClick={() => fileInputRef.current?.click()} 
+                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors relative"
+                                title="Dosya Gönder"
+                                disabled={isUploading}
+                            >
+                                {isUploading ? <Loader2 size={20} className="animate-spin text-blue-500"/> : <Paperclip size={20}/>}
+                            </button>
                             <input className="flex-1 bg-slate-100 border-0 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-100 outline-none" placeholder="Mesaj..." value={newMessage} onChange={e => setNewMessage(e.target.value)} />
-                            <button type="submit" className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-full p-2 transition-colors"><Send size={18}/></button>
+                            <button type="submit" disabled={isUploading} className="bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-white rounded-full p-2 transition-colors"><Send size={18}/></button>
                         </form>
                     </>
                  ) : <div className="flex-1 flex items-center justify-center text-slate-400">Kişi Seçin</div>}
@@ -862,7 +1008,8 @@ const AIStudio = () => {
                  // GÜNCELLEME: Gram için Myriad Arabic Regular 38pt
                  ctx.font = "normal 38pt 'Myriad Arabic', sans-serif";
                  // Trim ile boşlukları temizle
-                 ctx.fillText(prodGram.trim() + " gr", alignRightX, canvas.height - 40);
+                 // GÜNCELLEME: gr ile boşluk kaldırıldı
+                 ctx.fillText(prodGram.trim() + "gr", alignRightX, canvas.height - 40);
             }
             if(prodCode) {
                 // GÜNCELLEME: Kod için Myriad Arabic Bold 40pt
@@ -1551,49 +1698,51 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
 
             <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
                 {/* Bildirimler - Absolute Positioning - GÜNCELLENDİ */}
-                {/* activeTab ürün yönetimi veya siparişler ise top-24 (aşağıda), değilse top-4 (yukarıda) */}
-                <div className={`absolute right-8 z-50 transition-all duration-300 ease-in-out ${(activeTab === 'products' || activeTab === 'orders') ? 'top-20' : 'top-4'}`}>
-                    <div className="relative">
-                        <button 
-                            onClick={() => setIsNotificationOpen(!isNotificationOpen)} 
-                            className="p-2 text-slate-500 hover:text-slate-800 rounded-full relative transition-colors bg-transparent"
-                        >
-                            <Bell size={24} />
-                            {notifications.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>}
-                        </button>
-                        
-                        {isNotificationOpen && (
-                            <>
-                                <div className="fixed inset-0 z-40" onClick={() => setIsNotificationOpen(false)}></div>
-                                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in slide-in-from-top-2">
-                                    <div className="p-3 border-b border-slate-50 font-bold text-sm text-slate-700">Bildirimler</div>
-                                    <div className="max-h-80 overflow-y-auto">
-                                        {notifications.length === 0 ? (
-                                            <div className="p-4 text-center text-xs text-slate-400">Yeni bildirim yok</div>
-                                        ) : (
-                                            notifications.map((n, i) => (
-                                                <div 
-                                                    key={i} 
-                                                    onClick={() => handleNotificationClick(n)}
-                                                    className={`p-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer ${n.type === 'message' ? 'bg-blue-50/50' : 'bg-yellow-50/50'}`}
-                                                >
-                                                    <div className="flex justify-between items-start mb-1">
-                                                        <span className="font-bold text-xs text-slate-800">{n.title}</span>
-                                                        <span className="text-[10px] text-slate-400">{n.time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                {/* activeTab ürün yönetimi haricinde göster */}
+                {activeTab !== 'products' && (
+                    <div className={`absolute right-8 z-50 transition-all duration-300 ease-in-out ${activeTab === 'orders' ? 'top-20' : 'top-4'}`}>
+                        <div className="relative">
+                            <button 
+                                onClick={() => setIsNotificationOpen(!isNotificationOpen)} 
+                                className="p-2 text-slate-500 hover:text-slate-800 rounded-full relative transition-colors bg-transparent"
+                            >
+                                <Bell size={24} />
+                                {notifications.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>}
+                            </button>
+                            
+                            {isNotificationOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setIsNotificationOpen(false)}></div>
+                                    <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in slide-in-from-top-2">
+                                        <div className="p-3 border-b border-slate-50 font-bold text-sm text-slate-700">Bildirimler</div>
+                                        <div className="max-h-80 overflow-y-auto">
+                                            {notifications.length === 0 ? (
+                                                <div className="p-4 text-center text-xs text-slate-400">Yeni bildirim yok</div>
+                                            ) : (
+                                                notifications.map((n, i) => (
+                                                    <div 
+                                                        key={i} 
+                                                        onClick={() => handleNotificationClick(n)}
+                                                        className={`p-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer ${n.type === 'message' ? 'bg-blue-50/50' : 'bg-yellow-50/50'}`}
+                                                    >
+                                                        <div className="flex justify-between items-start mb-1">
+                                                            <span className="font-bold text-xs text-slate-800">{n.title}</span>
+                                                            <span className="text-[10px] text-slate-400">{n.time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                        </div>
+                                                        <div className="text-xs text-slate-600 line-clamp-2">{n.message}</div>
                                                     </div>
-                                                    <div className="text-xs text-slate-600 line-clamp-2">{n.message}</div>
-                                                </div>
-                                            ))
+                                                ))
+                                            )}
+                                        </div>
+                                        {notifications.length > 0 && (
+                                            <button onClick={() => setNotifications([])} className="w-full py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 border-t border-slate-100">Tümünü Temizle</button>
                                         )}
                                     </div>
-                                    {notifications.length > 0 && (
-                                        <button onClick={() => setNotifications([])} className="w-full py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 border-t border-slate-100">Tümünü Temizle</button>
-                                    )}
-                                </div>
-                            </>
-                        )}
+                                </>
+                            )}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 <div className="flex-1 overflow-y-auto p-8 relative" ref={scrollContainerRef}>
                     {activeTab === 'dashboard' && <AdminDashboard products={products} orders={orders} dashboardDate={dashboardDate} setDashboardDate={setDashboardDate} />}
@@ -2198,6 +2347,15 @@ const App = () => {
     const [logoUrl, setLogoUrl] = useState(DEFAULT_LOGO_URL);
     const [currentUserData, setCurrentUserData] = useState({});
     const [draftData, setDraftData] = useState({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] });
+
+    // YENİ EKLENEN KISIM: Sekme Başlığı ve İkonu
+    useEffect(() => {
+        document.title = "Sahra Kuyumculuk"; // 
+        const link = document.querySelector("link[rel~='icon']");
+        if (link) {
+            link.href = "https://i.hizliresim.com/6pdu20m.png"; // 
+        }
+    }, []);
 
     useEffect(() => {
         const initAuth = async () => { 
