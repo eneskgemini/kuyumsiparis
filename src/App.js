@@ -1,8 +1,4 @@
 /* global __firebase_config, __app_id, __initial_auth_token */
-// ==========================================
-// FILE: src/App.js (Main Entry - Non-Blocking Uploads)
-// ==========================================
-
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
@@ -20,14 +16,14 @@ import {
   ShoppingBag, Search, Plus, Trash, LogOut,
   X, Star, RefreshCcw, Folder, ChevronDown, Printer, Download, Save, Check, CheckCheck,
   ArrowUp, Upload, User, Key, ChevronLeft, ChevronRight, AlertTriangle, Users, Send, Settings, Box, CheckCircle, Calendar, Minus, Pencil, Activity, TrendingUp, CheckSquare, FileText, Wand2,
-  Grid, AlignCenter, MousePointer2, Image as ImageIcon, Monitor, Paperclip, Bell, Loader2
+  Grid, AlignCenter, MousePointer2, Image as ImageIcon, Monitor, Paperclip
 } from 'lucide-react';
 
 // FileIcon alias'ını manuel oluşturuyoruz (FileText kullanarak)
 const FileIcon = FileText;
 
 // ==========================================
-// FILE: src/constants.js
+// CONSTANTS & HELPERS
 // ==========================================
 const DEFAULT_LOGO_URL = "https://i.hizliresim.com/6pdu20m.png"; 
 const DEFAULT_FRAME_URL = "https://i.hizliresim.com/pq4m3mg.png";
@@ -35,7 +31,7 @@ const NOTIFICATION_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869
 const CATEGORIES = ["Anasayfa", "Yüzük", "Kolye", "Küpe", "Bileklik", "Set", "Haç"];
 const SUBCATEGORIES = {
   "Yüzük": ["AS-B", "SMG", "SA-Y", "SB-M", "SB-Y", "SH-R", "SH-Y", "SK-Y", "SM-I", "SM-Y", "SR-G", "SS-H", "SS-Y", "ST-I", "ST-O"],
-  "Kolye": ["SA-K", "SH-H", "SK-A", "SK-E"],
+  "Kolye": ["SA-K", "SH-H", "SK-A", "SK-B", "SK-E"],
   "Küpe": ["SH-K", "SK-M", "SM-K", "SR-E"],
   "Bileklik": ["SP-B"],
   "Set": ["SB-S", "SH-E", "SS-A", "SV-K"],
@@ -51,7 +47,7 @@ const ORDER_STAGES = {
 };
 
 // ==========================================
-// FILE: src/config/firebase.js
+// FIREBASE CONFIG
 // ==========================================
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
   apiKey: "AIzaSyBU8dWUrlVu2PUiysZ44r0USHn-TtfT6R0",
@@ -75,7 +71,7 @@ try {
 const appId = typeof __app_id !== 'undefined' ? __app_id : "sahra-kuyum-app";
 
 // ==========================================
-// FILE: src/utils/helpers.js
+// UTILS
 // ==========================================
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -103,7 +99,7 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                const MAX_SIZE = 1200; // Optimize edilmiş boyut
+                const MAX_SIZE = 2000; 
                 if (width > MAX_SIZE || height > MAX_SIZE) {
                     const ratio = Math.min(MAX_SIZE / width, MAX_SIZE / height);
                     width *= ratio;
@@ -116,12 +112,11 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 ctx.fillRect(0, 0, width, height);
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                let quality = 0.7; // Optimize edilmiş kalite
+                let quality = 0.85; 
                 let dataUrl = canvas.toDataURL('image/jpeg', quality);
-                const MAX_CHARS = 900000; // Firestore limitinin hemen altı (yaklaşık 900KB)
+                const MAX_CHARS = 1000000; 
                 
-                // Çok agresif sıkıştırma gerekirse
-                while (dataUrl.length > MAX_CHARS && quality > 0.3) {
+                while (dataUrl.length > MAX_CHARS && quality > 0.2) {
                     quality -= 0.1;
                     dataUrl = canvas.toDataURL('image/jpeg', quality);
                 }
@@ -139,17 +134,6 @@ const processFile = (file) => new Promise((resolve, reject) => {
 
 const handleDownload = async (url, filename) => {
     try {
-        // Base64 ise direkt indir
-        if (url.startsWith('data:')) {
-             const link = document.createElement('a');
-             link.href = url;
-             link.download = filename || 'dosya';
-             document.body.appendChild(link);
-             link.click();
-             document.body.removeChild(link);
-             return;
-        }
-
         const response = await fetch(url);
         const blob = await response.blob();
         const blobUrl = window.URL.createObjectURL(blob);
@@ -167,7 +151,7 @@ const handleDownload = async (url, filename) => {
 };
 
 // ==========================================
-// FILE: src/components/Shared/PrintStyles.js
+// SHARED COMPONENTS
 // ==========================================
 const PrintStyles = () => (
   <style>{`
@@ -208,9 +192,6 @@ const PrintStyles = () => (
   `}</style>
 );
 
-// ==========================================
-// FILE: src/components/Shared/UIComponents.js
-// ==========================================
 const CustomNotification = ({ type, message, onClose }) => {
   useEffect(() => { const timer = setTimeout(onClose, 4000); return () => clearTimeout(timer); }, [onClose]);
   return (
@@ -293,7 +274,7 @@ const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDel
                         <div className="font-bold text-xs truncate text-slate-800">{product.code}</div>
                         <div className="text-[10px] text-slate-500 font-bold">{product.gram} gr</div>
                         
-                        <button onClick={() => startEditing(product)} className="absolute top-1 right-8 bg-blue-50 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-blue-600" title="Düzenle"><Pencil size={12}/></button>
+                        <button onClick={() => startEditing(product)} className="absolute top-1 right-8 bg-blue-500 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-blue-600" title="Düzenle"><Pencil size={12}/></button>
                         <button onClick={() => onDeleteClick(product.id)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600" title="Sil"><Trash size={12}/></button>
                     </div>
                 ))}
@@ -309,7 +290,7 @@ const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDel
 });
 
 // ==========================================
-// FILE: src/components/Dashboard/DashboardComponents.js
+// DASHBOARD COMPONENTS
 // ==========================================
 const SalesCalendar = ({ orders, selectedDate, onDateChange }) => {
     const currentDate = selectedDate || new Date();
@@ -362,15 +343,14 @@ const SalesCalendar = ({ orders, selectedDate, onDateChange }) => {
         return days;
     };
 
-    // UPDATE: h-fit added to prevent vertical stretching
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible relative h-fit">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible relative">
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                 <h3 className="font-bold text-slate-700 flex items-center gap-2"><Calendar size={18} className="text-blue-500"/> Satış Takvimi</h3>
                 <div className="flex items-center gap-2"><button onClick={() => changeMonth(-1)}><ChevronLeft size={20}/></button><span className="text-sm font-bold w-32 text-center">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</span><button onClick={() => changeMonth(1)}><ChevronRight size={20}/></button></div>
             </div>
             <div className="grid grid-cols-7 text-center text-xs font-bold text-slate-500 bg-slate-100 py-2 border-b border-slate-200"><div>Pzt</div><div>Sal</div><div>Çar</div><div>Per</div><div>Cum</div><div>Cmt</div><div>Paz</div></div>
-            <div className="grid grid-cols-7 relative">{renderDays()}{selectedDayDetail && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-lg shadow-2xl border-2 border-yellow-400 w-64 p-4"><h4 className="font-bold mb-2">{selectedDayDetail.day} {monthNames[currentDate.getMonth()]}</h4>{selectedDayDetail.orders.map((o,i)=><div key={i} className="flex justify-between text-xs border-b py-1"><span className="capitalize">{o.name}</span><span className="font-bold">{o.gram}gr</span></div>)}<button onClick={()=>setSelectedDayDetail(null)} className="mt-2 w-full bg-slate-100 text-xs py-1 font-bold">Kapat</button></div>}</div>
+            <div className="grid grid-cols-7 relative">{renderDays()}{selectedDayDetail && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-lg shadow-2xl border-2 border-yellow-400 w-64 p-4"><h4 className="font-bold mb-2">{selectedDayDetail.day} {monthNames[currentDate.getMonth()]}</h4>{selectedDayDetail.orders.map((o,i)=><div key={i} className="flex justify-between text-xs border-b py-1"><span>{o.name}</span><span className="font-bold">{o.gram}gr</span></div>)}<button onClick={()=>setSelectedDayDetail(null)} className="mt-2 w-full bg-slate-100 text-xs py-1 font-bold">Kapat</button></div>}</div>
             <div className="p-4 bg-green-50 border-t border-green-100 flex justify-between items-center"><div className="flex items-center gap-2 text-green-800"><TrendingUp size={20} /><span className="font-bold text-sm">Bu Ay Toplam</span></div><div className="text-xl font-bold text-green-700">{monthlyTotalGram} gr</div></div>
         </div>
     );
@@ -379,13 +359,11 @@ const SalesCalendar = ({ orders, selectedDate, onDateChange }) => {
 const MonthlyPerformanceView = ({ orders, selectedDate }) => {
     const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
     const currentDate = selectedDate || new Date();
-    const [previewImage, setPreviewImage] = useState(null);
-
+    
     const monthlyStats = useMemo(() => {
         let totalGram = 0;
         let orderCount = 0;
-        const productCounts = {};
-        const productImages = {};
+        const categoryStats = {};
 
         orders.forEach(order => {
             if(order.status === 'delivered' && order.createdAt && order.createdAt.seconds) {
@@ -396,49 +374,21 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
                         order.items.forEach(i => {
                             const gram = (parseGram(i.gram) * (parseInt(i.quantity) || 1));
                             totalGram += gram;
-                            
-                            const code = i.code || 'Bilinmeyen';
-                            if (!productCounts[code]) productCounts[code] = 0;
-                            productCounts[code] += (parseInt(i.quantity) || 1);
-                            
-                            if (!productImages[code] && i.imageUrl && i.imageUrl !== DEFAULT_LOGO_URL) {
-                                productImages[code] = i.imageUrl;
-                            }
+                            const cat = i.category || 'Diğer';
+                            if (!categoryStats[cat]) categoryStats[cat] = { count: 0, gram: 0 };
+                            categoryStats[cat].count += (parseInt(i.quantity) || 1);
+                            categoryStats[cat].gram += gram;
                         });
                     }
                 }
             }
         });
         
-        const topProducts = Object.entries(productCounts)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 10)
-            .map(([code, count]) => ({
-                code,
-                count,
-                imageUrl: productImages[code]
-            }));
-        
-        return { totalGram, orderCount, topProducts };
+        return { totalGram, orderCount, categoryStats };
     }, [orders, currentDate]);
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full relative">
-            {previewImage && (
-                // UPDATE: Changed absolute to fixed with high z-index
-                <div 
-                    className="fixed inset-0 z-[500] bg-black/80 flex items-center justify-center p-4 cursor-pointer backdrop-blur-sm animate-in fade-in duration-200"
-                    onClick={() => setPreviewImage(null)}
-                >
-                    <div className="relative bg-white p-2 rounded-lg max-w-sm w-full">
-                        <img src={previewImage} className="w-full h-auto rounded max-h-[80vh] object-contain mx-auto" alt="Preview"/>
-                        <div className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1">
-                            <X size={20}/>
-                        </div>
-                    </div>
-                </div>
-            )}
-            
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full">
             <div className="p-4 bg-slate-50 border-b border-slate-200">
                 <h3 className="font-bold text-slate-700 flex items-center gap-2">
                     <Activity size={18} className="text-purple-600"/> 
@@ -448,7 +398,7 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
             <div className="p-6">
                 <div className="grid grid-cols-2 gap-4 mb-6">
                     <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 text-center">
-                        <div className="text-purple-600 text-xs font-bold uppercase mb-1">Toplam Sevkiyat</div>
+                        <div className="text-purple-600 text-xs font-bold uppercase mb-1">Teslim Edilen Sipariş</div>
                         <div className="text-3xl font-bold text-purple-800">{monthlyStats.orderCount}</div>
                     </div>
                     <div className="bg-green-50 p-4 rounded-xl border border-green-100 text-center">
@@ -457,27 +407,23 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
                     </div>
                 </div>
                 
-                <h4 className="font-bold text-slate-600 text-sm mb-3">En Çok Satılan 10 Model</h4>
-                <div className="space-y-2">
-                    {monthlyStats.topProducts.length > 0 ? (
-                        monthlyStats.topProducts.map((item, index) => (
-                            <div key={item.code} className="flex items-center justify-between text-sm border-b border-slate-50 pb-2 hover:bg-slate-50 rounded px-2 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold ${index < 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-500'}`}>
-                                        {index + 1}
-                                    </span>
-                                    <button 
-                                        onClick={() => item.imageUrl && setPreviewImage(item.imageUrl)}
-                                        className={`font-medium text-slate-700 ${item.imageUrl ? 'hover:text-blue-600 hover:underline cursor-pointer' : 'cursor-default'}`}
-                                    >
-                                        {item.code}
-                                    </button>
+                <h4 className="font-bold text-slate-600 text-sm mb-3">Kategori Dağılımı</h4>
+                <div className="space-y-3">
+                    {Object.entries(monthlyStats.categoryStats).length > 0 ? (
+                        Object.entries(monthlyStats.categoryStats)
+                        .sort(([,a], [,b]) => b.gram - a.gram)
+                        .map(([cat, stats]) => (
+                            <div key={cat} className="flex items-center justify-between text-sm border-b border-slate-50 pb-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                                    <span className="font-medium text-slate-700">{cat}</span>
+                                    <span className="text-xs text-slate-400">({stats.count} adet)</span>
                                 </div>
-                                <div className="font-bold text-slate-800">{item.count} Adet</div>
+                                <div className="font-bold text-slate-800">{stats.gram.toFixed(2)} gr</div>
                             </div>
                         ))
                     ) : (
-                        <div className="text-center text-slate-400 py-4 text-sm italic">Bu ay henüz satış yok.</div>
+                        <div className="text-center text-slate-400 py-4 text-sm italic">Bu ay henüz teslimat yok.</div>
                     )}
                 </div>
             </div>
@@ -486,21 +432,15 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
 };
 
 // ==========================================
-// FILE: src/components/Modules/MessagingModule.js
+// MESSAGING MODULE
 // ==========================================
-const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
+const MessagingModule = ({ appId, currentUserProfile }) => {
     const [messages, setMessages] = useState([]);
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
     const [newMessage, setNewMessage] = useState("");
     const [previewImage, setPreviewImage] = useState(null); 
     const [deleteConfig, setDeleteConfig] = useState({ isOpen: false, type: null, id: null, title: '', message: '' });
-    
-    // Upload States
-    const [isUploading, setIsUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [dragActive, setDragActive] = useState(false); // Sürükle bırak state'i
-    const fileInputRef = useRef(null);
 
     const messagesEndRef = useRef(null); 
     const scrollContainerRef = useRef(null); 
@@ -531,16 +471,6 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
         });
         return () => { unsubUsers(); unsubMsgs(); };
     }, [appId, currentUserProfile]);
-
-    // Handle deep linking to a chat
-    useEffect(() => {
-        if (targetChatUser && users.length > 0) {
-            const foundUser = users.find(u => u.uid === targetChatUser);
-            if (foundUser) {
-                setSelectedUser(foundUser);
-            }
-        }
-    }, [targetChatUser, users]);
     
     useEffect(() => {
         if (selectedUser && messages.length > 0) {
@@ -573,103 +503,6 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
     
     const handleSendMessage = async (e) => { e.preventDefault(); if(!newMessage.trim() || !selectedUser) return; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), { content: newMessage, senderId: currentUserProfile.uid, senderName: currentUserProfile.displayName || currentUserProfile.email, senderEmail: currentUserProfile.email, receiverId: selectedUser.uid, receiverName: selectedUser.displayName || selectedUser.email, createdAt: serverTimestamp(), read: false, type: 'text' }); setNewMessage(""); };
     
-    // GÜNCELLENMİŞ: Ortak Yükleme Fonksiyonu
-    const uploadFile = async (file) => {
-        if (!file) return;
-        if (!selectedUser) {
-            alert("Lütfen önce bir kişi seçiniz.");
-            return;
-        }
-
-        setIsUploading(true);
-        // "Dosya gönderiliyor yazmasın" -> Bildirimleri kaldırdık, sadece buton üzerinde state olacak.
-
-        try {
-            // Görseller için Base64 dönüşümü (Storage yerine Firestore)
-            if (file.type.startsWith('image/')) {
-                const processed = await processFile(file); // Sıkıştır ve Base64'e çevir
-                
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), {
-                    content: 'Görsel paylaşıldı',
-                    senderId: currentUserProfile.uid,
-                    senderName: currentUserProfile.displayName || currentUserProfile.email,
-                    senderEmail: currentUserProfile.email,
-                    receiverId: selectedUser.uid,
-                    receiverName: selectedUser.displayName || selectedUser.email,
-                    createdAt: serverTimestamp(),
-                    read: false,
-                    type: 'image',
-                    imageUrl: processed.base64,
-                    fileName: file.name,
-                    fileSize: file.size,
-                    fileType: file.type
-                });
-                setIsUploading(false);
-                if(fileInputRef.current) fileInputRef.current.value = null;
-            } else {
-                // Diğer dosyalar için (PDF vb.)
-                // Küçük dosyaları Base64 yapalım (1MB altı)
-                if (file.size < 1048576) {
-                    const reader = new FileReader();
-                    reader.onload = async (e) => {
-                        const base64 = e.target.result;
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), {
-                            content: file.name,
-                            senderId: currentUserProfile.uid,
-                            senderName: currentUserProfile.displayName || currentUserProfile.email,
-                            senderEmail: currentUserProfile.email,
-                            receiverId: selectedUser.uid,
-                            receiverName: selectedUser.displayName || selectedUser.email,
-                            createdAt: serverTimestamp(),
-                            read: false,
-                            type: 'file',
-                            fileUrl: base64, 
-                            fileName: file.name,
-                            fileSize: file.size,
-                            fileType: file.type
-                        });
-                        setIsUploading(false);
-                        if(fileInputRef.current) fileInputRef.current.value = null;
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    // Büyük dosyalarda uyarı ver (Storage bu ortamda güvenilmez)
-                    alert("Çok büyük dosyalar bu ortamda gönderilemez. Lütfen 1MB altı dosya seçiniz.");
-                    setIsUploading(false);
-                }
-            }
-        } catch (err) {
-            console.error("Yükleme hatası:", err);
-            alert("Mesaj gönderilemedi.");
-            setIsUploading(false);
-        }
-    };
-
-    const handleFileUpload = (e) => {
-        const file = e.target.files[0];
-        uploadFile(file);
-    };
-
-    // GÜNCELLENMİŞ: Sürükle Bırak Fonksiyonları
-    const handleDrag = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.type === "dragenter" || e.type === "dragover") {
-            setDragActive(true);
-        } else if (e.type === "dragleave") {
-            setDragActive(false);
-        }
-    };
-
-    const handleDrop = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragActive(false);
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            uploadFile(e.dataTransfer.files[0]);
-        }
-    };
-
     const triggerDelete = (type, id = null) => {
         setDeleteConfig({
             isOpen: true,
@@ -737,25 +570,7 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
                     ))}
                 </div>
             </div>
-            
-            <div 
-                className="flex-1 flex flex-col bg-slate-50/30 relative" 
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-            >
-                 {/* Drag & Drop Overlay */}
-                 {dragActive && selectedUser && (
-                    <div className="absolute inset-0 z-[100] bg-blue-500/10 backdrop-blur-sm border-2 border-dashed border-blue-500 flex flex-col items-center justify-center pointer-events-none animate-in fade-in duration-200">
-                        <div className="bg-white p-6 rounded-full shadow-xl mb-4 text-blue-600">
-                            <Upload size={48} />
-                        </div>
-                        <h3 className="text-xl font-bold text-blue-900">Dosyayı Buraya Bırakın</h3>
-                        <p className="text-blue-700 font-medium mt-1">{selectedUser.displayName} kişisine gönderilecek</p>
-                    </div>
-                 )}
-
+            <div className="flex-1 flex flex-col bg-slate-50/30 relative">
                  {selectedUser ? (
                     <>
                         <div className="p-3 bg-white border-b flex justify-between items-center font-bold text-slate-800">
@@ -768,8 +583,7 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
                                 <button onClick={()=>{setSelectedUser(null)}} className="text-slate-400 hover:text-slate-600 p-2"><X size={18}/></button>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 custom-scrollbar relative" ref={scrollContainerRef}>
-                            
+                        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 custom-scrollbar" ref={scrollContainerRef}>
                             {messages.filter(m => (m.senderId === currentUserProfile.uid && m.receiverId === selectedUser.uid) || (m.senderId === selectedUser.uid && m.receiverId === currentUserProfile.uid)).map(m => (
                                 <div key={m.id} className={`flex ${m.senderId === currentUserProfile.uid ? 'justify-end' : 'justify-start'} group relative items-end gap-2`}>
                                     
@@ -788,7 +602,7 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
                                             <div className="overflow-hidden rounded-lg relative group/img">
                                                 <img 
                                                     src={m.imageUrl} 
-                                                    className="w-full h-auto max-h-64 object-cover cursor-pointer bg-slate-100" 
+                                                    className="w-full h-auto max-h-64 object-cover cursor-pointer" 
                                                     onClick={()=>setPreviewImage(m.imageUrl)}
                                                     onLoad={() => scrollToBottom()} 
                                                     loading="lazy"
@@ -802,22 +616,20 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
                                                 </button>
                                             </div>
                                         ) : m.type === 'file' ? (
-                                            <div className="flex items-center gap-3 min-w-[200px]">
-                                                <div className="bg-slate-700/20 p-2.5 rounded-lg shrink-0">
-                                                    <FileIcon size={28} className={m.senderId === currentUserProfile.uid ? 'text-blue-200' : 'text-slate-500'} />
+                                            <div className="flex items-center gap-3">
+                                                <div className="bg-slate-700/20 p-2 rounded-lg shrink-0">
+                                                    <FileIcon size={24} />
                                                 </div>
-                                                <div className="overflow-hidden min-w-0 flex-1">
-                                                    <div className="font-bold truncate text-xs mb-0.5" title={m.fileName}>{m.fileName}</div>
-                                                    <div className="text-[10px] opacity-70">
-                                                        {m.fileSize ? (m.fileSize / 1024 / 1024).toFixed(2) + ' MB' : 'Dosya'}
-                                                    </div>
+                                                <div className="overflow-hidden min-w-0">
+                                                    <div className="font-bold truncate text-xs mb-0.5">{m.fileName}</div>
+                                                    <div className="text-[10px] opacity-70">{(m.fileSize / 1024 / 1024).toFixed(1)} MB</div>
                                                 </div>
                                                 <button 
                                                     onClick={() => handleDownload(m.fileUrl, m.fileName)}
-                                                    className="p-2 bg-white/20 hover:bg-white/40 rounded-full transition-colors shrink-0" 
+                                                    className="ml-2 p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors shrink-0" 
                                                     title="İndir"
                                                 >
-                                                    <Download size={18} />
+                                                    <Download size={16} />
                                                 </button>
                                             </div>
                                         ) : (
@@ -838,18 +650,8 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
                             <div ref={messagesEndRef}></div>
                         </div>
                         <form onSubmit={handleSendMessage} className="p-3 bg-white border-t flex gap-2 items-center">
-                            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                            <button 
-                                type="button" 
-                                onClick={() => fileInputRef.current?.click()} 
-                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors relative"
-                                title="Dosya Gönder"
-                                disabled={isUploading}
-                            >
-                                {isUploading ? <Loader2 size={20} className="animate-spin text-blue-500"/> : <Paperclip size={20}/>}
-                            </button>
                             <input className="flex-1 bg-slate-100 border-0 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-100 outline-none" placeholder="Mesaj..." value={newMessage} onChange={e => setNewMessage(e.target.value)} />
-                            <button type="submit" disabled={isUploading} className="bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-white rounded-full p-2 transition-colors"><Send size={18}/></button>
+                            <button type="submit" className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-full p-2 transition-colors"><Send size={18}/></button>
                         </form>
                     </>
                  ) : <div className="flex-1 flex items-center justify-center text-slate-400">Kişi Seçin</div>}
@@ -859,7 +661,7 @@ const MessagingModule = ({ appId, currentUserProfile, targetChatUser }) => {
 };
 
 // ==========================================
-// FILE: src/components/Modules/AIStudio.js (Eski: SocialMediaEditor)
+// AI STUDIO (SOCIAL MEDIA EDITOR)
 // ==========================================
 const AIStudio = () => {
     // Çerçeveyi localStorage'dan veya varsayılan değerden al
@@ -1008,8 +810,7 @@ const AIStudio = () => {
                  // GÜNCELLEME: Gram için Myriad Arabic Regular 38pt
                  ctx.font = "normal 38pt 'Myriad Arabic', sans-serif";
                  // Trim ile boşlukları temizle
-                 // GÜNCELLEME: gr ile boşluk kaldırıldı
-                 ctx.fillText(prodGram.trim() + "gr", alignRightX, canvas.height - 40);
+                 ctx.fillText(prodGram.trim() + " gr", alignRightX, canvas.height - 40);
             }
             if(prodCode) {
                 // GÜNCELLEME: Kod için Myriad Arabic Bold 40pt
@@ -1269,56 +1070,28 @@ const AIStudio = () => {
 };
 
 // ==========================================
-// FILE: src/components/Admin/AdminSubViews.js
+// ADMIN DASHBOARD
 // ==========================================
 
-const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) => {
-    
-    // Atölyedeki (Preparing) siparişlerin sayısını ve gramajını hesapla
-    const workshopStats = useMemo(() => {
-        const preparingOrders = orders.filter(o => o.status === 'preparing');
-        let totalGrams = 0;
-        
-        preparingOrders.forEach(order => {
-            if (order.items) {
-                order.items.forEach(item => {
-                    const gram = parseGram(item.gram);
-                    const qty = parseInt(item.quantity) || 1;
-                    totalGrams += (gram * qty);
-                });
-            }
-        });
-        
-        return {
-            count: preparingOrders.length,
-            grams: totalGrams.toFixed(2)
-        };
-    }, [orders]);
-
-    return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <h2 className="text-2xl font-bold text-slate-800">Panel Özeti</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    <div className="text-slate-500 text-sm font-bold mb-1">Toplam Ürün</div>
-                    <div className="text-3xl font-bold text-slate-800">{products.length}</div>
-                </div>
-                {/* Değiştirilen Kart: Atölyedeki Siparişler */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    <div className="text-slate-500 text-sm font-bold mb-1">Atölyedeki Sipariş</div>
-                    <div className="flex items-end gap-2">
-                         <div className="text-3xl font-bold text-slate-800">{workshopStats.count}</div>
-                         <div className="text-sm font-bold text-slate-400 mb-1">({workshopStats.grams} gr)</div>
-                    </div>
-                </div>
+const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) => (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+        <h2 className="text-2xl font-bold text-slate-800">Panel Özeti</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div className="text-slate-500 text-sm font-bold mb-1">Toplam Ürün</div>
+                <div className="text-3xl font-bold text-slate-800">{products.length}</div>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SalesCalendar orders={orders} selectedDate={dashboardDate} onDateChange={setDashboardDate} />
-                <MonthlyPerformanceView orders={orders} selectedDate={dashboardDate} />
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div className="text-slate-500 text-sm font-bold mb-1">Toplam Sipariş</div>
+                <div className="text-3xl font-bold text-slate-800">{orders.length}</div>
             </div>
         </div>
-    );
-};
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SalesCalendar orders={orders} selectedDate={dashboardDate} onDateChange={setDashboardDate} />
+            <MonthlyPerformanceView orders={orders} selectedDate={dashboardDate} />
+        </div>
+    </div>
+);
 
 const AdminProductManager = ({ products, editingId, startEditing, cancelEditing, handleDeleteProduct, handleAddProduct, newProduct, setNewProduct, dragActive, handleDrag, handleDrop, isLoading, logoUrl }) => {
     const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, productId: null });
@@ -1334,9 +1107,15 @@ const AdminProductManager = ({ products, editingId, startEditing, cancelEditing,
         }
     }, [deleteConfirmation.productId, handleDeleteProduct]);
 
+    // KRİTİK PERFORMANS DÜZELTMESİ:
+    // Sıralama işlemi artık useMemo içinde yapılıyor. Böylece "newProduct" state'i değiştiğinde (klavye ile yazarken),
+    // tüm liste tekrar sıralanıp render edilmiyor. Sadece "products" listesi değiştiğinde render ediliyor.
     const groupedProducts = useMemo(() => {
         const grouped = {};
-        products.forEach(p => {
+        // Önce tüm ürünleri sırala (sort işlemi burada yapılır)
+        const sortedProducts = [...products].sort(naturalSort);
+        
+        sortedProducts.forEach(p => {
             if (!grouped[p.category]) grouped[p.category] = {};
             const sub = p.subcategory || 'Diğer';
             if (!grouped[p.category][sub]) grouped[p.category][sub] = [];
@@ -1386,7 +1165,8 @@ const AdminProductManager = ({ products, editingId, startEditing, cancelEditing,
                         <div className="space-y-2 mt-2">
                             {Object.entries(subcategories).sort(([subA], [subB]) => subA.localeCompare(subB, undefined, { numeric: true, sensitivity: 'base' })).map(([subcategory, items]) => (
                                 <CollapsibleSection key={subcategory} title={subcategory} count={items.length} level={1}>
-                                    <PaginatedProductGrid items={[...items].sort(naturalSort)} editingId={editingId} startEditing={startEditing} onDeleteClick={openDeleteModal} />
+                                    {/* items artık sıralı geldiği için burada tekrar sort yapmaya gerek yok ve referans bozulmuyor */}
+                                    <PaginatedProductGrid items={items} editingId={editingId} startEditing={startEditing} onDeleteClick={openDeleteModal} />
                                 </CollapsibleSection>
                             ))}
                         </div>
@@ -1528,7 +1308,7 @@ const AdminSettings = ({ logoUrl, handleLogoUpload }) => (
 );
 
 // ==========================================
-// FILE: src/layouts/AdminPanelContent.js
+// ADMIN CONTENT LAYOUT
 // ==========================================
 const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, onClose, handleDeleteProduct, handleUpdateStatus, setNotification, onCreateNewOrder, onViewOrder, handleDeleteOrder, logoUrl, handleUpdateLogo }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -1538,99 +1318,6 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
     const [isLoading, setIsLoading] = useState(false);
     const [editingId, setEditingId] = useState(null); 
     const scrollContainerRef = useRef(null); 
-    const [notifications, setNotifications] = useState([]);
-    const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-    const [targetChatUser, setTargetChatUser] = useState(null);
-
-    // Bildirim Dinleyicileri
-    useEffect(() => {
-        if (!currentUserProfile) return;
-
-        // 1. Teslim Tarihi Yaklaşan Siparişleri Kontrol Et (3 gün kala)
-        const checkUpcomingOrders = () => {
-            const today = new Date();
-            const upcoming = orders.filter(order => {
-                if (order.status === 'delivered' || !order.deliveryDate) return false;
-                const delivery = new Date(order.deliveryDate);
-                const diffTime = delivery - today;
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                return diffDays <= 3 && diffDays > 0;
-            });
-
-            const orderNotifications = upcoming.map(o => ({
-                id: `order-${o.id}`,
-                type: 'warning',
-                title: 'Teslimat Yaklaşıyor',
-                message: `${o.customerName} siparişinin teslimine ${Math.ceil((new Date(o.deliveryDate) - today)/(1000*60*60*24))} gün kaldı.`,
-                time: new Date()
-            }));
-            
-            setNotifications(prev => {
-                // Mevcut olmayanları ekle
-                const existingIds = new Set(prev.map(n => n.id));
-                const newOnes = orderNotifications.filter(n => !existingIds.has(n.id));
-                return [...newOnes, ...prev];
-            });
-        };
-
-        checkUpcomingOrders();
-    }, [orders]);
-
-    useEffect(() => {
-        // 2. Yeni Mesajları Dinle
-        const q = query(
-            collection(db, 'artifacts', appId, 'public', 'data', 'messages'), 
-            where('receiverId', '==', currentUserProfile.uid),
-            where('read', '==', false),
-            orderBy('createdAt', 'desc'),
-            limit(10)
-        );
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === "added") {
-                    const msg = change.doc.data();
-                    // Sadece yeni gelenler için (son 1 dk içinde) ses çal
-                    const isRecent = msg.createdAt && (new Date() - new Date(msg.createdAt.seconds * 1000)) < 60000;
-                    
-                    if (isRecent) {
-                        try {
-                            const audio = new Audio(NOTIFICATION_SOUND_URL);
-                            audio.play().catch(e => console.log("Ses çalma hatası:", e));
-                        } catch (e) {
-                            console.error("Audio error", e);
-                        }
-                    }
-
-                    setNotifications(prev => {
-                        const exists = prev.some(n => n.id === change.doc.id);
-                        if (exists) return prev;
-                        return [{
-                            id: change.doc.id,
-                            type: 'message',
-                            senderId: msg.senderId,
-                            title: `${msg.senderName} size mesaj gönderdi`,
-                            message: `${msg.content.substring(0, 30)}${msg.content.length>30?'...':''}`,
-                            time: msg.createdAt ? new Date(msg.createdAt.seconds * 1000) : new Date()
-                        }, ...prev];
-                    });
-                }
-            });
-        });
-
-        return () => unsubscribe();
-    }, [appId, currentUserProfile]);
-
-    const handleNotificationClick = (notification) => {
-        // UPDATE: Bildirimi okundu olarak işaretle (listeden kaldır)
-        setNotifications(prev => prev.filter(n => n.id !== notification.id));
-
-        if (notification.type === 'message' && notification.senderId) {
-            setTargetChatUser(notification.senderId);
-            setActiveTab('messages');
-        }
-        setIsNotificationOpen(false);
-    };
 
     const handleLogout = async () => { 
         if (currentUserProfile && currentUserProfile.uid) {
@@ -1696,69 +1383,20 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
                 </div>
             </div>
 
-            <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
-                {/* Bildirimler - Absolute Positioning - GÜNCELLENDİ */}
-                {/* activeTab ürün yönetimi haricinde göster */}
-                {activeTab !== 'products' && (
-                    <div className={`absolute right-8 z-50 transition-all duration-300 ease-in-out ${activeTab === 'orders' ? 'top-20' : 'top-4'}`}>
-                        <div className="relative">
-                            <button 
-                                onClick={() => setIsNotificationOpen(!isNotificationOpen)} 
-                                className="p-2 text-slate-500 hover:text-slate-800 rounded-full relative transition-colors bg-transparent"
-                            >
-                                <Bell size={24} />
-                                {notifications.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>}
-                            </button>
-                            
-                            {isNotificationOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-40" onClick={() => setIsNotificationOpen(false)}></div>
-                                    <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in slide-in-from-top-2">
-                                        <div className="p-3 border-b border-slate-50 font-bold text-sm text-slate-700">Bildirimler</div>
-                                        <div className="max-h-80 overflow-y-auto">
-                                            {notifications.length === 0 ? (
-                                                <div className="p-4 text-center text-xs text-slate-400">Yeni bildirim yok</div>
-                                            ) : (
-                                                notifications.map((n, i) => (
-                                                    <div 
-                                                        key={i} 
-                                                        onClick={() => handleNotificationClick(n)}
-                                                        className={`p-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer ${n.type === 'message' ? 'bg-blue-50/50' : 'bg-yellow-50/50'}`}
-                                                    >
-                                                        <div className="flex justify-between items-start mb-1">
-                                                            <span className="font-bold text-xs text-slate-800">{n.title}</span>
-                                                            <span className="text-[10px] text-slate-400">{n.time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                                                        </div>
-                                                        <div className="text-xs text-slate-600 line-clamp-2">{n.message}</div>
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-                                        {notifications.length > 0 && (
-                                            <button onClick={() => setNotifications([])} className="w-full py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 border-t border-slate-100">Tümünü Temizle</button>
-                                        )}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                <div className="flex-1 overflow-y-auto p-8 relative" ref={scrollContainerRef}>
-                    {activeTab === 'dashboard' && <AdminDashboard products={products} orders={orders} dashboardDate={dashboardDate} setDashboardDate={setDashboardDate} />}
-                    {activeTab === 'products' && <AdminProductManager products={products} editingId={editingId} startEditing={startEditing} cancelEditing={cancelEditing} handleDeleteProduct={handleDeleteProduct} handleAddProduct={handleAddProduct} newProduct={newProduct} setNewProduct={setNewProduct} dragActive={dragActive} handleDrag={handleDrag} handleDrop={handleDrop} isLoading={isLoading} logoUrl={logoUrl} />}
-                    {activeTab === 'orders' && <AdminOrderManager orders={orders} onCreateNewOrder={onCreateNewOrder} onViewOrder={onViewOrder} handleUpdateStatus={handleUpdateStatus} handleDeleteOrder={handleDeleteOrder} />}
-                    {activeTab === 'social' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-slate-800 mb-4">Stüdyo</h2><div className="h-[600px]"><AIStudio /></div></div>}
-                    {activeTab === 'messages' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-slate-800 mb-4">Mesajlar</h2><MessagingModule appId={appId} currentUserProfile={currentUserProfile} targetChatUser={targetChatUser} /></div>}
-                    {activeTab === 'settings' && <AdminSettings logoUrl={logoUrl} handleLogoUpload={handleLogoUpload} />}
-                </div>
+            <div className="flex-1 overflow-y-auto p-8 relative" ref={scrollContainerRef}>
+                {activeTab === 'dashboard' && <AdminDashboard products={products} orders={orders} dashboardDate={dashboardDate} setDashboardDate={setDashboardDate} />}
+                {activeTab === 'products' && <AdminProductManager products={products} editingId={editingId} startEditing={startEditing} cancelEditing={cancelEditing} handleDeleteProduct={handleDeleteProduct} handleAddProduct={handleAddProduct} newProduct={newProduct} setNewProduct={setNewProduct} dragActive={dragActive} handleDrag={handleDrag} handleDrop={handleDrop} isLoading={isLoading} logoUrl={logoUrl} />}
+                {activeTab === 'orders' && <AdminOrderManager orders={orders} onCreateNewOrder={onCreateNewOrder} onViewOrder={onViewOrder} handleUpdateStatus={handleUpdateStatus} handleDeleteOrder={handleDeleteOrder} />}
+                {activeTab === 'social' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-slate-800 mb-4">Stüdyo</h2><div className="h-[600px]"><AIStudio /></div></div>}
+                {activeTab === 'messages' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-slate-800 mb-4">Mesajlar</h2><MessagingModule appId={appId} currentUserProfile={currentUserProfile} /></div>}
+                {activeTab === 'settings' && <AdminSettings logoUrl={logoUrl} handleLogoUpload={handleLogoUpload} />}
             </div>
         </div>
     );
 };
 
 // ==========================================
-// FILE: src/components/Store/ProductCard.js
+// STORE COMPONENTS
 // ==========================================
 const ProductCard = React.memo(({ product, onAddToCart, logoUrl }) => (
   <div className="bg-white rounded-lg shadow-md overflow-hidden border border-slate-100 hover:shadow-xl transition-all duration-300 group flex flex-col h-full relative">
@@ -1774,9 +1412,6 @@ const ProductCard = React.memo(({ product, onAddToCart, logoUrl }) => (
   </div>
 ));
 
-// ==========================================
-// FILE: src/components/Store/ProductModal.js
-// ==========================================
 const ProductModal = ({ product, isOpen, onClose, onConfirm }) => {
     const [quantity, setQuantity] = useState(1);
     const [size, setSize] = useState("");
@@ -1799,9 +1434,6 @@ const ProductModal = ({ product, isOpen, onClose, onConfirm }) => {
     );
 };
 
-// ==========================================
-// FILE: src/components/Shared/UserProfileModal.js
-// ==========================================
 const UserProfileModal = ({ user, isOpen, onClose }) => {
     const [name, setName] = useState(user?.displayName || "");
     const [position, setPosition] = useState("");
@@ -1900,7 +1532,7 @@ const UserProfileModal = ({ user, isOpen, onClose }) => {
 };
 
 // ==========================================
-// FILE: src/components/Order/OrderPreviewModal.js
+// ORDER PREVIEW MODAL
 // ==========================================
 const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, onCreateOrder, products, onUpdateOrder, draftData, setDraftData, logoUrl }) => {
   const [customerName, setCustomerName] = useState("");
@@ -1940,12 +1572,26 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   };
 
   useEffect(() => { if (isOpen) document.body.style.overflow = 'hidden'; else document.body.style.overflow = 'unset'; return () => { document.body.style.overflow = 'unset'; }; }, [isOpen]);
-  useEffect(() => { if (isEditable && deliveryDate && orderDate > deliveryDate) { setDeliveryDate(orderDate); } }, [orderDate, deliveryDate, isEditable]);
+  
+  // DÜZELTME: Bu kısmı devre dışı bırakıyoruz ki kullanıcı özgürce tarih seçebilsin
+  // useEffect(() => { if (isEditable && deliveryDate && orderDate > deliveryDate) { setDeliveryDate(orderDate); } }, [orderDate, deliveryDate, isEditable]);
   
   useEffect(() => {
     if (initialData) {
         setCustomerName(initialData.customerName || ""); setCustomerPhone(initialData.customerPhone || ""); setOrderNo(initialData.customOrderNo || "");
-        setEditableItems((initialData.items || []).map((item, idx) => ({ ...item, _tempId: idx, imageUrl: item.imageUrl || logoUrl })));
+        
+        // GÜNCELLEME: Görselleri yeniden yükle (Rehydrate images from products if missing)
+        setEditableItems((initialData.items || []).map((item, idx) => {
+            let img = item.imageUrl;
+            if (!img && products) {
+                // Daha gelişmiş arama mantığı: Trim ve Case-Insensitive kontrol
+                const codeToFind = item.code ? item.code.toString().trim().toLowerCase() : "";
+                const p = products.find(p => p.code && p.code.toString().trim().toLowerCase() === codeToFind);
+                if (p) img = p.imageUrl;
+            }
+            return { ...item, _tempId: idx, imageUrl: img || logoUrl };
+        }));
+
         setOrderStamp(initialData.orderStamp || ""); setStampType(initialData.orderStamp?.startsWith('data:image') ? 'image' : 'text');
         if(initialData.createdAt && initialData.createdAt.seconds) setOrderDate(new Date(initialData.createdAt.seconds * 1000).toISOString().split('T')[0]);
         setOrderKarat(initialData.orderKarat || initialData.items?.[0]?.selectedKarat || ""); setDeliveryDate(initialData.deliveryDate || ""); 
@@ -1958,16 +1604,19 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
         } else if (draftData?.items && draftData.items.length > 0) { 
             initialItems = draftData.items.map(item => ({ ...item, imageUrl: item.imageUrl || logoUrl })); 
         } else { 
-            initialItems = Array.from({ length: 9 }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `manual_${i}` })); 
+            initialItems = Array.from({ length: 12 }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `manual_${i}` })); 
         }
         setEditableItems(initialItems);
     }
-  }, [initialData, cart, isOpen, logoUrl]);
+  }, [initialData, cart, isOpen, logoUrl, products]);
   
   const compactList = useCallback(() => {
       setEditableItems(prev => {
           const filled = prev.filter(item => (item.code && item.code.trim() !== ""));
-          let neededCount = filled.length <= 9 ? 9 : 9 + (Math.ceil((filled.length - 9) / 12) * 12);
+          // İlk sayfa limiti 12, diğer sayfalar da 12.
+          const pageLimit = 12;
+          let neededCount = Math.ceil(Math.max(filled.length, pageLimit) / pageLimit) * pageLimit;
+
           const extraNeeded = Math.max(0, neededCount - filled.length);
           const emptyRows = Array.from({ length: extraNeeded }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `auto_fill_${Date.now()}_${i}` }));
           return [...filled, ...emptyRows];
@@ -1980,18 +1629,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   
   const handleItemUpdate = (index, field, value) => { 
       setEditableItems(prev => { 
-          if (field === 'code' && value) {
-              const isDuplicate = prev.some((item, i) => 
-                  i !== index && 
-                  item.code && 
-                  item.code.trim().toLowerCase() === value.toString().trim().toLowerCase()
-              );
-              if (isDuplicate) {
-                  window.alert("Bu ürün zaten listenizde mevcut!");
-                  return prev; 
-              }
-          }
-
+          // GÜNCELLEME: Anlık duplicate kontrolü kaldırıldı (Blocking duplicate check removed)
           const newItems = [...prev]; 
           let newItem = { ...newItems[index], [field]: value }; 
           
@@ -2022,11 +1660,12 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
     if (field === 'selectedColor') { setGlobalColor(value); }
   };
 
-  const handleSaveOrder = (status = 'new') => { if(!customerName) return window.alert("Firma Adı Giriniz"); if(!orderKarat) return window.alert("Lütfen sipariş ayarını seçiniz!"); if(!deliveryDate) return window.alert("Lütfen teslim tarihini giriniz!"); const cleanItems = editableItems.filter(item => item.code && item.code.trim() !== "").map(({ _tempId, ...rest }) => rest); if (cleanItems.length === 0) return window.alert("Lütfen en az 1 ürün giriniz."); if (isViewingOldOrder && onUpdateOrder) onUpdateOrder(initialData.id, { customerName, customerPhone, orderKarat, orderStamp, deliveryDate, customOrderNo: orderNo, items: cleanItems, status: status === 'new' ? 'new' : initialData.status }); else onCreateOrder(customerName, customerPhone, "", deliveryDate, orderKarat, orderNo, orderStamp, cleanItems, status); };
+  const handleSaveOrder = (status = 'new') => { if(!customerName) return window.alert("Firma Adı Giriniz"); if(!orderKarat) return window.alert("Lütfen sipariş ayarını seçiniz!"); if(!deliveryDate) return window.alert("Lütfen teslim tarihini giriniz!"); const cleanItems = editableItems.filter(item => item.code && item.code.trim() !== "").map(({ _tempId, ...rest }) => rest); if (cleanItems.length === 0) return window.alert("Lütfen en az 1 ürün giriniz."); if (isViewingOldOrder && onUpdateOrder) onUpdateOrder(initialData.id, { customerName, customerPhone, orderKarat, orderStamp, deliveryDate, customOrderNo: orderNo, items: cleanItems, status: status === 'new' ? 'new' : initialData.status }); else onCreateOrder(customerName, customerPhone, "", deliveryDate, orderKarat, orderNo, orderStamp, cleanItems, status, orderDate); };
   
   if (!isOpen) return null;
-  const FIRST_PAGE_ITEMS = 9; const OTHER_PAGE_ITEMS = 12; const pages = []; let itemsForPagination = [...editableItems];
-  if (itemsForPagination.length > 0) { pages.push(itemsForPagination.splice(0, itemsForPagination.length >= FIRST_PAGE_ITEMS ? FIRST_PAGE_ITEMS : itemsForPagination.length)); while (itemsForPagination.length > 0) pages.push(itemsForPagination.splice(0, OTHER_PAGE_ITEMS)); } else { pages.push(Array.from({ length: 9 }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `empty_${i}` }))); }
+  // GÜNCELLEME: İlk sayfa limiti 12'ye çıkarıldı
+  const FIRST_PAGE_ITEMS = 12; const OTHER_PAGE_ITEMS = 12; const pages = []; let itemsForPagination = [...editableItems];
+  if (itemsForPagination.length > 0) { pages.push(itemsForPagination.splice(0, itemsForPagination.length >= FIRST_PAGE_ITEMS ? FIRST_PAGE_ITEMS : itemsForPagination.length)); while (itemsForPagination.length > 0) pages.push(itemsForPagination.splice(0, OTHER_PAGE_ITEMS)); } else { pages.push(Array.from({ length: 12 }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `empty_${i}` }))); }
   
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-sm overflow-y-auto modal-overlay-fix">
@@ -2083,11 +1722,16 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                                     <div className="flex flex-col gap-2">
                                         <input value={customerName} onChange={e=>{setCustomerName(e.target.value.toUpperCase()); updateDraft('customerName', e.target.value);}} placeholder="FİRMA ADI *" className="p-2 border rounded font-bold text-sm w-full"/>
                                         <input value={orderNo} onChange={e=>{setOrderNo(e.target.value); updateDraft('customOrderNo', e.target.value);}} placeholder="SİPARİŞ NO" className="p-2 border rounded font-bold text-sm w-full"/>
-                                        <input type="date" min={new Date().toISOString().split('T')[0]} value={deliveryDate} onChange={e=>{setDeliveryDate(e.target.value); updateDraft('deliveryDate', e.target.value);}} className="p-2 border rounded text-sm w-full"/> 
                                     </div>
                                     <div className="flex flex-col gap-2">
-                                        <select value={orderKarat} onChange={e => updateAllItems('selectedKarat', e.target.value)} className="p-2 border rounded bg-white font-bold text-sm w-full"> <option value="" disabled>Ayar Seç (Tümü)</option> {KARAT_OPTIONS.map(k=><option key={k} value={k}>{k}</option>)} </select>
-                                        <select value={globalColor} onChange={e => updateAllItems('selectedColor', e.target.value)} className="p-2 border rounded bg-white font-bold text-sm w-full"> <option value="">Renk Seç (Tümü)</option> {COLOR_OPTIONS.map(c=><option key={c} value={c}>{c}</option>)} </select>
+                                        <div className="flex gap-2">
+                                            <input type="date" value={orderDate} onChange={e=>{setOrderDate(e.target.value); updateDraft('orderDate', e.target.value);}} title="Sipariş Tarihi" className="p-2 border rounded text-sm w-1/2"/> 
+                                            <input type="date" min={new Date().toISOString().split('T')[0]} value={deliveryDate} onChange={e=>{setDeliveryDate(e.target.value); updateDraft('deliveryDate', e.target.value);}} title="Teslim Tarihi" className="p-2 border rounded text-sm w-1/2"/> 
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <select value={orderKarat} onChange={e => updateAllItems('selectedKarat', e.target.value)} className="p-2 border rounded bg-white font-bold text-sm w-full"> <option value="" disabled>Ayar Seç (Tümü)</option> {KARAT_OPTIONS.map(k=><option key={k} value={k}>{k}</option>)} </select>
+                                            <select value={globalColor} onChange={e => updateAllItems('selectedColor', e.target.value)} className="p-2 border rounded bg-white font-bold text-sm w-full"> <option value="">Renk Seç (Tümü)</option> {COLOR_OPTIONS.map(c=><option key={c} value={c}>{c}</option>)} </select>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -2153,19 +1797,16 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                         onClick={() => {
                             setEditableItems(prev => {
                                 const currentLen = prev.length;
+                                // Her sayfa artık 12 ürün
+                                const pageLimit = 12;
                                 let addCount = 0;
                                 
-                                if (currentLen < 9) {
-                                    addCount = 9 - currentLen;
-                                } 
-                                else {
-                                    const remainder = (currentLen - 9) % 12;
-                                    
-                                    if (remainder === 0) {
-                                        addCount = 12;
-                                    } else {
-                                        addCount = 12 - remainder;
-                                    }
+                                const remainder = currentLen % pageLimit;
+                                
+                                if (remainder === 0) {
+                                    addCount = pageLimit;
+                                } else {
+                                    addCount = pageLimit - remainder;
                                 }
                                 
                                 const newItems = Array.from({ length: addCount }).map((_, i) => ({ 
@@ -2189,7 +1830,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
 };
 
 // ==========================================
-// FILE: src/layouts/StoreView.js
+// STORE VIEW
 // ==========================================
 const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, setIsOrderPreviewOpen, viewingOrder, setViewingOrder, handleCheckout, removeFromCart, orderKarat, user, setIsAdminOpen, setShowLogin, setSelectedProduct, onLogin, currentUserData, logoUrl }) => {
   const [activeCategory, setActiveCategory] = useState("Anasayfa");
@@ -2215,37 +1856,6 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
       await signOut(auth); 
       window.location.reload(); 
   };
-
-  // YÖNETİM PANELİ ERİŞİM KONTROLÜ (GÜNCELLENDİ)
-  const isAdmin = useMemo(() => {
-    if (!currentUserData) return false;
-
-    // DEBUG: Konsola veriyi yazdırarak kontrol edelim
-    console.log("Kullanıcı Yetki Kontrolü:", currentUserData);
-
-    const roleRaw = currentUserData.role;
-    const positionRaw = currentUserData.position;
-
-    // Rol diziyse veya stringse hepsini küçük harfe çevirip birleşik string yapalım
-    let roleStr = "";
-    if (Array.isArray(roleRaw)) roleStr = roleRaw.join(" ").toLowerCase();
-    else roleStr = (roleRaw || "").toString().toLowerCase();
-
-    const positionStr = (positionRaw || "").toString().toLowerCase();
-
-    // İzin verilen anahtar kelimeler
-    const allowedKeywords = [
-        'admin', 'manager', 'ceo', 'owner', 'sahip', 'kurucu', 
-        'yonetici', 'yönetici', 'administrator', 'baskan', 'başkan'
-    ];
-
-    // Rol veya pozisyon bu kelimelerden birini içeriyor mu?
-    const hasPermission = allowedKeywords.some(keyword => 
-        roleStr.includes(keyword) || positionStr.includes(keyword)
-    );
-    
-    return hasPermission;
-  }, [currentUserData]);
   
   const filteredProducts = useMemo(() => { 
       if (!products) return []; 
@@ -2280,7 +1890,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 
   return (
     <div className="flex h-screen overflow-hidden relative">
-        {showEmptyCartModal && <div className="fixed inset-0 z-[300] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowEmptyCartModal(false)}><div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full text-center"><div className="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4"><AlertTriangle size={32} className="text-yellow-500"/></div><h3 className="text-xl font-bold text-slate-800 mb-2">Uyarı</h3><p className="text-slate-500 text-sm mb-4">Lütfen listeyi hazırlamak için en az 1 model ekleyiniz.</p><button onClick={() => setShowEmptyCartModal(false)} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm w-full">Tamam</button></div></div>}
+        {showEmptyCartModal && <div className="fixed inset-0 z-[300] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowEmptyCartModal(false)}><div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full text-center"><div className="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4"><ShoppingBag size={32} className="text-yellow-500"/></div><h3 className="text-xl font-bold text-slate-800 mb-2">Sepetiniz Boş</h3><button onClick={() => setShowEmptyCartModal(false)} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm w-full">Tamam</button></div></div>}
         {isAccountModalOpen && <UserProfileModal user={user} isOpen={isAccountModalOpen} onClose={() => setIsAccountModalOpen(false)} />}
         
         <div className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 z-20 shadow-xl relative">
@@ -2294,8 +1904,9 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                     </div>
                 ))}
             </div>
-            {/* GÜNCELLEME: Sadece admin rolüne sahip kullanıcılar için Yönetim Paneli butonunu göster */}
-            {isAdmin && (
+            
+            {/* GÜNCELLEME: Yalnızca admin rolüne sahip kullanıcılar için görünür */}
+            {currentUserData?.role === 'admin' && (
                 <div className="p-4 border-t border-slate-800 bg-slate-950">
                     <button onClick={() => setIsAdminOpen(true)} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-bold transition-colors">
                         <Settings size={16}/> Yönetim Paneli
@@ -2347,15 +1958,6 @@ const App = () => {
     const [logoUrl, setLogoUrl] = useState(DEFAULT_LOGO_URL);
     const [currentUserData, setCurrentUserData] = useState({});
     const [draftData, setDraftData] = useState({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] });
-
-    // YENİ EKLENEN KISIM: Sekme Başlığı ve İkonu
-    useEffect(() => {
-        document.title = "Sahra Kuyumculuk"; // 
-        const link = document.querySelector("link[rel~='icon']");
-        if (link) {
-            link.href = "https://i.hizliresim.com/6pdu20m.png"; // 
-        }
-    }, []);
 
     useEffect(() => {
         const initAuth = async () => { 
@@ -2419,22 +2021,68 @@ const App = () => {
 
     useEffect(() => {
         if (!user) return;
-        const unsubSettings = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'general'), (docSnap) => { if (docSnap.exists() && docSnap.data().logoUrl) { setLogoUrl(docSnap.data().logoUrl); } });
-        if (user?.uid) { const unsubUser = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid), (docSnap) => { if (docSnap.exists()) { setCurrentUserData(docSnap.data()); } }); return () => { unsubSettings(); unsubUser(); }; } else { setCurrentUserData({}); return () => unsubSettings(); }
-    }, [user, appId]);
-
-    useEffect(() => {
-        if (!user) return;
+        
+        // Ürünleri dinle
         const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); });
+        
+        // Siparişleri dinle
         const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snap) => { setOrders(snap.docs.map(d => ({id:d.id, ...d.data()}))); });
-        return () => { unsubProducts(); unsubOrders(); };
-    }, [user]);
+        
+        // GÜNCELLEME: Kullanıcı verilerini (rolünü) dinle
+        const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
+        const unsubUser = onSnapshot(userRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setCurrentUserData(docSnap.data());
+            } else {
+                setCurrentUserData({});
+            }
+        });
+
+        return () => { unsubProducts(); unsubOrders(); unsubUser(); };
+    }, [user, appId]);
 
     const handleAdminLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); setNotification({type:'success', message:'Giriş başarılı'}); } catch (err) { setNotification({type:'error', message:'Giriş başarısız'}); } };
     const handleUpdateLogo = async (newLogoBase64) => { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'general'), { logoUrl: newLogoBase64, updatedAt: serverTimestamp() }, { merge: true }); };
     const handleAddToCart = useCallback((product) => { setCart(prev => [...prev, { ...product, cartId: Date.now() }]); setNotification({ type: 'success', message: `${product.code} sepete eklendi` }); if(cart.length === 0) setOrderKarat(product.selectedKarat); }, [cart.length]);
     const removeFromCart = useCallback((cartId) => { setCart(prev => { const newCart = prev.filter(item => item.cartId !== cartId); if(newCart.length === 0) setOrderKarat(null); return newCart; }); }, []);
-    const handleCheckout = useCallback(async (name, phone, note, deliveryDate, karat, orderNo, orderStamp, items = null, targetStatus = 'new') => { if(cart.length === 0 && (!items || items.length === 0)) return; if (!user) { alert("Oturum açılıyor..."); return; } try { const itemsToSave = (items || cart).map(item => { const { _tempId, ...rest } = item; return rest; }); await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), { customerName: name, customerPhone: phone, totalNote: note, items: itemsToSave, createdAt: serverTimestamp(), status: targetStatus, deliveryDate: deliveryDate, orderKarat: karat, customOrderNo: orderNo, orderStamp: orderStamp, createdBy: user.uid }); if (targetStatus !== 'draft') { setCart([]); setOrderKarat(null); setDraftData({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] }); } setIsOrderPreviewOpen(false); setNotification({ type: 'success', message: targetStatus === 'draft' ? "Taslak kaydedildi!" : "Sipariş oluşturuldu!" }); } catch (error) { setNotification({ type: 'error', message: "Hata: " + error.message }); } }, [cart, user, appId]);
+    
+    // GÜNCELLEME: Sipariş kaydedilirken görsel URL'sini ARTIK SİLMİYORUZ.
+    const handleCheckout = useCallback(async (name, phone, note, deliveryDate, karat, orderNo, orderStamp, items = null, targetStatus = 'new', finalOrderDate) => { 
+        if(cart.length === 0 && (!items || items.length === 0)) return; 
+        if (!user) { alert("Oturum açılıyor..."); return; } 
+        try { 
+            // DÜZELTME BURADA: Firestore 1MB limitini aşmamak için imageUrl ve imageFile alanlarını hariç tutuyoruz.
+            const itemsToSave = (items || cart).map(item => { 
+                const { _tempId, imageUrl, imageFile, ...rest } = item; 
+                return rest; 
+            }); 
+            
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), { 
+                customerName: name, 
+                customerPhone: phone, 
+                totalNote: note, 
+                items: itemsToSave, 
+                createdAt: finalOrderDate ? new Date(finalOrderDate) : serverTimestamp(), 
+                status: targetStatus, 
+                deliveryDate: deliveryDate, 
+                orderKarat: karat, 
+                customOrderNo: orderNo, 
+                orderStamp: orderStamp, 
+                createdBy: user.uid 
+            }); 
+            
+            if (targetStatus !== 'draft') { 
+                setCart([]); 
+                setOrderKarat(null); 
+                setDraftData({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] }); 
+            } 
+            setIsOrderPreviewOpen(false); 
+            setNotification({ type: 'success', message: targetStatus === 'draft' ? "Taslak kaydedildi!" : "Sipariş oluşturuldu!" }); 
+        } catch (error) { 
+            setNotification({ type: 'error', message: "Hata: " + error.message }); 
+        } 
+    }, [cart, user, appId]);
+    
     const handleUpdateOrder = useCallback(async (orderId, data) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), data); setIsOrderPreviewOpen(false); setViewingOrder(null); setNotification({type:'success', message:'Sipariş güncellendi'}); } catch (error) { setNotification({type:'error', message: error.message}); } }, [appId]);
     const handleDeleteProduct = useCallback(async (id) => { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id)); setNotification({type:'success', message:'Ürün silindi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, [appId]);
     const handleUpdateStatus = useCallback(async (orderId, status) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { status }); setNotification({type:'success', message:'Durum güncellendi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, [appId]);
