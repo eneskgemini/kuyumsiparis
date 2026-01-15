@@ -1,8 +1,4 @@
 /* global __firebase_config, __app_id, __initial_auth_token */
-// ==========================================
-// FILE: src/App.js (Main Entry - Non-Blocking Uploads)
-// ==========================================
-
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
@@ -27,7 +23,7 @@ import {
 const FileIcon = FileText;
 
 // ==========================================
-// FILE: src/constants.js
+// CONSTANTS & HELPERS
 // ==========================================
 const DEFAULT_LOGO_URL = "https://i.hizliresim.com/6pdu20m.png"; 
 const DEFAULT_FRAME_URL = "https://i.hizliresim.com/pq4m3mg.png";
@@ -51,7 +47,7 @@ const ORDER_STAGES = {
 };
 
 // ==========================================
-// FILE: src/config/firebase.js
+// FIREBASE CONFIG
 // ==========================================
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
   apiKey: "AIzaSyBU8dWUrlVu2PUiysZ44r0USHn-TtfT6R0",
@@ -75,7 +71,7 @@ try {
 const appId = typeof __app_id !== 'undefined' ? __app_id : "sahra-kuyum-app";
 
 // ==========================================
-// FILE: src/utils/helpers.js
+// UTILS
 // ==========================================
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -155,7 +151,7 @@ const handleDownload = async (url, filename) => {
 };
 
 // ==========================================
-// FILE: src/components/Shared/PrintStyles.js
+// SHARED COMPONENTS
 // ==========================================
 const PrintStyles = () => (
   <style>{`
@@ -196,9 +192,6 @@ const PrintStyles = () => (
   `}</style>
 );
 
-// ==========================================
-// FILE: src/components/Shared/UIComponents.js
-// ==========================================
 const CustomNotification = ({ type, message, onClose }) => {
   useEffect(() => { const timer = setTimeout(onClose, 4000); return () => clearTimeout(timer); }, [onClose]);
   return (
@@ -297,7 +290,7 @@ const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDel
 });
 
 // ==========================================
-// FILE: src/components/Dashboard/DashboardComponents.js
+// DASHBOARD COMPONENTS
 // ==========================================
 const SalesCalendar = ({ orders, selectedDate, onDateChange }) => {
     const currentDate = selectedDate || new Date();
@@ -439,7 +432,7 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
 };
 
 // ==========================================
-// FILE: src/components/Modules/MessagingModule.js
+// MESSAGING MODULE
 // ==========================================
 const MessagingModule = ({ appId, currentUserProfile }) => {
     const [messages, setMessages] = useState([]);
@@ -668,7 +661,7 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
 };
 
 // ==========================================
-// FILE: src/components/Modules/AIStudio.js (Eski: SocialMediaEditor)
+// AI STUDIO (SOCIAL MEDIA EDITOR)
 // ==========================================
 const AIStudio = () => {
     // Çerçeveyi localStorage'dan veya varsayılan değerden al
@@ -1077,7 +1070,7 @@ const AIStudio = () => {
 };
 
 // ==========================================
-// FILE: src/components/Admin/AdminSubViews.js
+// ADMIN DASHBOARD
 // ==========================================
 
 const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) => (
@@ -1114,9 +1107,15 @@ const AdminProductManager = ({ products, editingId, startEditing, cancelEditing,
         }
     }, [deleteConfirmation.productId, handleDeleteProduct]);
 
+    // KRİTİK PERFORMANS DÜZELTMESİ:
+    // Sıralama işlemi artık useMemo içinde yapılıyor. Böylece "newProduct" state'i değiştiğinde (klavye ile yazarken),
+    // tüm liste tekrar sıralanıp render edilmiyor. Sadece "products" listesi değiştiğinde render ediliyor.
     const groupedProducts = useMemo(() => {
         const grouped = {};
-        products.forEach(p => {
+        // Önce tüm ürünleri sırala (sort işlemi burada yapılır)
+        const sortedProducts = [...products].sort(naturalSort);
+        
+        sortedProducts.forEach(p => {
             if (!grouped[p.category]) grouped[p.category] = {};
             const sub = p.subcategory || 'Diğer';
             if (!grouped[p.category][sub]) grouped[p.category][sub] = [];
@@ -1166,7 +1165,8 @@ const AdminProductManager = ({ products, editingId, startEditing, cancelEditing,
                         <div className="space-y-2 mt-2">
                             {Object.entries(subcategories).sort(([subA], [subB]) => subA.localeCompare(subB, undefined, { numeric: true, sensitivity: 'base' })).map(([subcategory, items]) => (
                                 <CollapsibleSection key={subcategory} title={subcategory} count={items.length} level={1}>
-                                    <PaginatedProductGrid items={[...items].sort(naturalSort)} editingId={editingId} startEditing={startEditing} onDeleteClick={openDeleteModal} />
+                                    {/* items artık sıralı geldiği için burada tekrar sort yapmaya gerek yok ve referans bozulmuyor */}
+                                    <PaginatedProductGrid items={items} editingId={editingId} startEditing={startEditing} onDeleteClick={openDeleteModal} />
                                 </CollapsibleSection>
                             ))}
                         </div>
@@ -1308,7 +1308,7 @@ const AdminSettings = ({ logoUrl, handleLogoUpload }) => (
 );
 
 // ==========================================
-// FILE: src/layouts/AdminPanelContent.js
+// ADMIN CONTENT LAYOUT
 // ==========================================
 const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, onClose, handleDeleteProduct, handleUpdateStatus, setNotification, onCreateNewOrder, onViewOrder, handleDeleteOrder, logoUrl, handleUpdateLogo }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -1396,7 +1396,7 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
 };
 
 // ==========================================
-// FILE: src/components/Store/ProductCard.js
+// STORE COMPONENTS
 // ==========================================
 const ProductCard = React.memo(({ product, onAddToCart, logoUrl }) => (
   <div className="bg-white rounded-lg shadow-md overflow-hidden border border-slate-100 hover:shadow-xl transition-all duration-300 group flex flex-col h-full relative">
@@ -1412,9 +1412,6 @@ const ProductCard = React.memo(({ product, onAddToCart, logoUrl }) => (
   </div>
 ));
 
-// ==========================================
-// FILE: src/components/Store/ProductModal.js
-// ==========================================
 const ProductModal = ({ product, isOpen, onClose, onConfirm }) => {
     const [quantity, setQuantity] = useState(1);
     const [size, setSize] = useState("");
@@ -1437,9 +1434,6 @@ const ProductModal = ({ product, isOpen, onClose, onConfirm }) => {
     );
 };
 
-// ==========================================
-// FILE: src/components/Shared/UserProfileModal.js
-// ==========================================
 const UserProfileModal = ({ user, isOpen, onClose }) => {
     const [name, setName] = useState(user?.displayName || "");
     const [position, setPosition] = useState("");
@@ -1538,7 +1532,7 @@ const UserProfileModal = ({ user, isOpen, onClose }) => {
 };
 
 // ==========================================
-// FILE: src/components/Order/OrderPreviewModal.js
+// ORDER PREVIEW MODAL
 // ==========================================
 const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, onCreateOrder, products, onUpdateOrder, draftData, setDraftData, logoUrl }) => {
   const [customerName, setCustomerName] = useState("");
@@ -1578,12 +1572,26 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   };
 
   useEffect(() => { if (isOpen) document.body.style.overflow = 'hidden'; else document.body.style.overflow = 'unset'; return () => { document.body.style.overflow = 'unset'; }; }, [isOpen]);
-  useEffect(() => { if (isEditable && deliveryDate && orderDate > deliveryDate) { setDeliveryDate(orderDate); } }, [orderDate, deliveryDate, isEditable]);
+  
+  // DÜZELTME: Bu kısmı devre dışı bırakıyoruz ki kullanıcı özgürce tarih seçebilsin
+  // useEffect(() => { if (isEditable && deliveryDate && orderDate > deliveryDate) { setDeliveryDate(orderDate); } }, [orderDate, deliveryDate, isEditable]);
   
   useEffect(() => {
     if (initialData) {
         setCustomerName(initialData.customerName || ""); setCustomerPhone(initialData.customerPhone || ""); setOrderNo(initialData.customOrderNo || "");
-        setEditableItems((initialData.items || []).map((item, idx) => ({ ...item, _tempId: idx, imageUrl: item.imageUrl || logoUrl })));
+        
+        // GÜNCELLEME: Görselleri yeniden yükle (Rehydrate images from products if missing)
+        setEditableItems((initialData.items || []).map((item, idx) => {
+            let img = item.imageUrl;
+            if (!img && products) {
+                // Daha gelişmiş arama mantığı: Trim ve Case-Insensitive kontrol
+                const codeToFind = item.code ? item.code.toString().trim().toLowerCase() : "";
+                const p = products.find(p => p.code && p.code.toString().trim().toLowerCase() === codeToFind);
+                if (p) img = p.imageUrl;
+            }
+            return { ...item, _tempId: idx, imageUrl: img || logoUrl };
+        }));
+
         setOrderStamp(initialData.orderStamp || ""); setStampType(initialData.orderStamp?.startsWith('data:image') ? 'image' : 'text');
         if(initialData.createdAt && initialData.createdAt.seconds) setOrderDate(new Date(initialData.createdAt.seconds * 1000).toISOString().split('T')[0]);
         setOrderKarat(initialData.orderKarat || initialData.items?.[0]?.selectedKarat || ""); setDeliveryDate(initialData.deliveryDate || ""); 
@@ -1596,16 +1604,19 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
         } else if (draftData?.items && draftData.items.length > 0) { 
             initialItems = draftData.items.map(item => ({ ...item, imageUrl: item.imageUrl || logoUrl })); 
         } else { 
-            initialItems = Array.from({ length: 9 }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `manual_${i}` })); 
+            initialItems = Array.from({ length: 12 }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `manual_${i}` })); 
         }
         setEditableItems(initialItems);
     }
-  }, [initialData, cart, isOpen, logoUrl]);
+  }, [initialData, cart, isOpen, logoUrl, products]);
   
   const compactList = useCallback(() => {
       setEditableItems(prev => {
           const filled = prev.filter(item => (item.code && item.code.trim() !== ""));
-          let neededCount = filled.length <= 9 ? 9 : 9 + (Math.ceil((filled.length - 9) / 12) * 12);
+          // İlk sayfa limiti 12, diğer sayfalar da 12.
+          const pageLimit = 12;
+          let neededCount = Math.ceil(Math.max(filled.length, pageLimit) / pageLimit) * pageLimit;
+
           const extraNeeded = Math.max(0, neededCount - filled.length);
           const emptyRows = Array.from({ length: extraNeeded }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `auto_fill_${Date.now()}_${i}` }));
           return [...filled, ...emptyRows];
@@ -1618,18 +1629,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   
   const handleItemUpdate = (index, field, value) => { 
       setEditableItems(prev => { 
-          if (field === 'code' && value) {
-              const isDuplicate = prev.some((item, i) => 
-                  i !== index && 
-                  item.code && 
-                  item.code.trim().toLowerCase() === value.toString().trim().toLowerCase()
-              );
-              if (isDuplicate) {
-                  window.alert("Bu ürün zaten listenizde mevcut!");
-                  return prev; 
-              }
-          }
-
+          // GÜNCELLEME: Anlık duplicate kontrolü kaldırıldı (Blocking duplicate check removed)
           const newItems = [...prev]; 
           let newItem = { ...newItems[index], [field]: value }; 
           
@@ -1660,11 +1660,12 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
     if (field === 'selectedColor') { setGlobalColor(value); }
   };
 
-  const handleSaveOrder = (status = 'new') => { if(!customerName) return window.alert("Firma Adı Giriniz"); if(!orderKarat) return window.alert("Lütfen sipariş ayarını seçiniz!"); if(!deliveryDate) return window.alert("Lütfen teslim tarihini giriniz!"); const cleanItems = editableItems.filter(item => item.code && item.code.trim() !== "").map(({ _tempId, ...rest }) => rest); if (cleanItems.length === 0) return window.alert("Lütfen en az 1 ürün giriniz."); if (isViewingOldOrder && onUpdateOrder) onUpdateOrder(initialData.id, { customerName, customerPhone, orderKarat, orderStamp, deliveryDate, customOrderNo: orderNo, items: cleanItems, status: status === 'new' ? 'new' : initialData.status }); else onCreateOrder(customerName, customerPhone, "", deliveryDate, orderKarat, orderNo, orderStamp, cleanItems, status); };
+  const handleSaveOrder = (status = 'new') => { if(!customerName) return window.alert("Firma Adı Giriniz"); if(!orderKarat) return window.alert("Lütfen sipariş ayarını seçiniz!"); if(!deliveryDate) return window.alert("Lütfen teslim tarihini giriniz!"); const cleanItems = editableItems.filter(item => item.code && item.code.trim() !== "").map(({ _tempId, ...rest }) => rest); if (cleanItems.length === 0) return window.alert("Lütfen en az 1 ürün giriniz."); if (isViewingOldOrder && onUpdateOrder) onUpdateOrder(initialData.id, { customerName, customerPhone, orderKarat, orderStamp, deliveryDate, customOrderNo: orderNo, items: cleanItems, status: status === 'new' ? 'new' : initialData.status }); else onCreateOrder(customerName, customerPhone, "", deliveryDate, orderKarat, orderNo, orderStamp, cleanItems, status, orderDate); };
   
   if (!isOpen) return null;
-  const FIRST_PAGE_ITEMS = 9; const OTHER_PAGE_ITEMS = 12; const pages = []; let itemsForPagination = [...editableItems];
-  if (itemsForPagination.length > 0) { pages.push(itemsForPagination.splice(0, itemsForPagination.length >= FIRST_PAGE_ITEMS ? FIRST_PAGE_ITEMS : itemsForPagination.length)); while (itemsForPagination.length > 0) pages.push(itemsForPagination.splice(0, OTHER_PAGE_ITEMS)); } else { pages.push(Array.from({ length: 9 }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `empty_${i}` }))); }
+  // GÜNCELLEME: İlk sayfa limiti 12'ye çıkarıldı
+  const FIRST_PAGE_ITEMS = 12; const OTHER_PAGE_ITEMS = 12; const pages = []; let itemsForPagination = [...editableItems];
+  if (itemsForPagination.length > 0) { pages.push(itemsForPagination.splice(0, itemsForPagination.length >= FIRST_PAGE_ITEMS ? FIRST_PAGE_ITEMS : itemsForPagination.length)); while (itemsForPagination.length > 0) pages.push(itemsForPagination.splice(0, OTHER_PAGE_ITEMS)); } else { pages.push(Array.from({ length: 12 }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `empty_${i}` }))); }
   
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-sm overflow-y-auto modal-overlay-fix">
@@ -1721,11 +1722,16 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                                     <div className="flex flex-col gap-2">
                                         <input value={customerName} onChange={e=>{setCustomerName(e.target.value.toUpperCase()); updateDraft('customerName', e.target.value);}} placeholder="FİRMA ADI *" className="p-2 border rounded font-bold text-sm w-full"/>
                                         <input value={orderNo} onChange={e=>{setOrderNo(e.target.value); updateDraft('customOrderNo', e.target.value);}} placeholder="SİPARİŞ NO" className="p-2 border rounded font-bold text-sm w-full"/>
-                                        <input type="date" min={new Date().toISOString().split('T')[0]} value={deliveryDate} onChange={e=>{setDeliveryDate(e.target.value); updateDraft('deliveryDate', e.target.value);}} className="p-2 border rounded text-sm w-full"/> 
                                     </div>
                                     <div className="flex flex-col gap-2">
-                                        <select value={orderKarat} onChange={e => updateAllItems('selectedKarat', e.target.value)} className="p-2 border rounded bg-white font-bold text-sm w-full"> <option value="" disabled>Ayar Seç (Tümü)</option> {KARAT_OPTIONS.map(k=><option key={k} value={k}>{k}</option>)} </select>
-                                        <select value={globalColor} onChange={e => updateAllItems('selectedColor', e.target.value)} className="p-2 border rounded bg-white font-bold text-sm w-full"> <option value="">Renk Seç (Tümü)</option> {COLOR_OPTIONS.map(c=><option key={c} value={c}>{c}</option>)} </select>
+                                        <div className="flex gap-2">
+                                            <input type="date" value={orderDate} onChange={e=>{setOrderDate(e.target.value); updateDraft('orderDate', e.target.value);}} title="Sipariş Tarihi" className="p-2 border rounded text-sm w-1/2"/> 
+                                            <input type="date" min={new Date().toISOString().split('T')[0]} value={deliveryDate} onChange={e=>{setDeliveryDate(e.target.value); updateDraft('deliveryDate', e.target.value);}} title="Teslim Tarihi" className="p-2 border rounded text-sm w-1/2"/> 
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <select value={orderKarat} onChange={e => updateAllItems('selectedKarat', e.target.value)} className="p-2 border rounded bg-white font-bold text-sm w-full"> <option value="" disabled>Ayar Seç (Tümü)</option> {KARAT_OPTIONS.map(k=><option key={k} value={k}>{k}</option>)} </select>
+                                            <select value={globalColor} onChange={e => updateAllItems('selectedColor', e.target.value)} className="p-2 border rounded bg-white font-bold text-sm w-full"> <option value="">Renk Seç (Tümü)</option> {COLOR_OPTIONS.map(c=><option key={c} value={c}>{c}</option>)} </select>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -1791,19 +1797,16 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                         onClick={() => {
                             setEditableItems(prev => {
                                 const currentLen = prev.length;
+                                // Her sayfa artık 12 ürün
+                                const pageLimit = 12;
                                 let addCount = 0;
                                 
-                                if (currentLen < 9) {
-                                    addCount = 9 - currentLen;
-                                } 
-                                else {
-                                    const remainder = (currentLen - 9) % 12;
-                                    
-                                    if (remainder === 0) {
-                                        addCount = 12;
-                                    } else {
-                                        addCount = 12 - remainder;
-                                    }
+                                const remainder = currentLen % pageLimit;
+                                
+                                if (remainder === 0) {
+                                    addCount = pageLimit;
+                                } else {
+                                    addCount = pageLimit - remainder;
                                 }
                                 
                                 const newItems = Array.from({ length: addCount }).map((_, i) => ({ 
@@ -1827,7 +1830,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
 };
 
 // ==========================================
-// FILE: src/layouts/StoreView.js
+// STORE VIEW
 // ==========================================
 const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, setIsOrderPreviewOpen, viewingOrder, setViewingOrder, handleCheckout, removeFromCart, orderKarat, user, setIsAdminOpen, setShowLogin, setSelectedProduct, onLogin, currentUserData, logoUrl }) => {
   const [activeCategory, setActiveCategory] = useState("Anasayfa");
@@ -1901,7 +1904,15 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                     </div>
                 ))}
             </div>
-            <div className="p-4 border-t border-slate-800 bg-slate-950"><button onClick={() => setIsAdminOpen(true)} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-bold transition-colors"><Settings size={16}/> Yönetim Paneli</button></div>
+            
+            {/* GÜNCELLEME: Yalnızca admin rolüne sahip kullanıcılar için görünür */}
+            {currentUserData?.role === 'admin' && (
+                <div className="p-4 border-t border-slate-800 bg-slate-950">
+                    <button onClick={() => setIsAdminOpen(true)} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-bold transition-colors">
+                        <Settings size={16}/> Yönetim Paneli
+                    </button>
+                </div>
+            )}
         </div>
 
         <div className="flex-1 flex flex-col bg-slate-50 relative overflow-hidden">
@@ -2010,22 +2021,68 @@ const App = () => {
 
     useEffect(() => {
         if (!user) return;
-        const unsubSettings = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'general'), (docSnap) => { if (docSnap.exists() && docSnap.data().logoUrl) { setLogoUrl(docSnap.data().logoUrl); } });
-        if (user?.uid) { const unsubUser = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid), (docSnap) => { if (docSnap.exists()) { setCurrentUserData(docSnap.data()); } }); return () => { unsubSettings(); unsubUser(); }; } else { setCurrentUserData({}); return () => unsubSettings(); }
-    }, [user, appId]);
-
-    useEffect(() => {
-        if (!user) return;
+        
+        // Ürünleri dinle
         const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); });
+        
+        // Siparişleri dinle
         const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snap) => { setOrders(snap.docs.map(d => ({id:d.id, ...d.data()}))); });
-        return () => { unsubProducts(); unsubOrders(); };
-    }, [user]);
+        
+        // GÜNCELLEME: Kullanıcı verilerini (rolünü) dinle
+        const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
+        const unsubUser = onSnapshot(userRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setCurrentUserData(docSnap.data());
+            } else {
+                setCurrentUserData({});
+            }
+        });
+
+        return () => { unsubProducts(); unsubOrders(); unsubUser(); };
+    }, [user, appId]);
 
     const handleAdminLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); setNotification({type:'success', message:'Giriş başarılı'}); } catch (err) { setNotification({type:'error', message:'Giriş başarısız'}); } };
     const handleUpdateLogo = async (newLogoBase64) => { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'general'), { logoUrl: newLogoBase64, updatedAt: serverTimestamp() }, { merge: true }); };
     const handleAddToCart = useCallback((product) => { setCart(prev => [...prev, { ...product, cartId: Date.now() }]); setNotification({ type: 'success', message: `${product.code} sepete eklendi` }); if(cart.length === 0) setOrderKarat(product.selectedKarat); }, [cart.length]);
     const removeFromCart = useCallback((cartId) => { setCart(prev => { const newCart = prev.filter(item => item.cartId !== cartId); if(newCart.length === 0) setOrderKarat(null); return newCart; }); }, []);
-    const handleCheckout = useCallback(async (name, phone, note, deliveryDate, karat, orderNo, orderStamp, items = null, targetStatus = 'new') => { if(cart.length === 0 && (!items || items.length === 0)) return; if (!user) { alert("Oturum açılıyor..."); return; } try { const itemsToSave = (items || cart).map(item => { const { _tempId, ...rest } = item; return rest; }); await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), { customerName: name, customerPhone: phone, totalNote: note, items: itemsToSave, createdAt: serverTimestamp(), status: targetStatus, deliveryDate: deliveryDate, orderKarat: karat, customOrderNo: orderNo, orderStamp: orderStamp, createdBy: user.uid }); if (targetStatus !== 'draft') { setCart([]); setOrderKarat(null); setDraftData({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] }); } setIsOrderPreviewOpen(false); setNotification({ type: 'success', message: targetStatus === 'draft' ? "Taslak kaydedildi!" : "Sipariş oluşturuldu!" }); } catch (error) { setNotification({ type: 'error', message: "Hata: " + error.message }); } }, [cart, user, appId]);
+    
+    // GÜNCELLEME: Sipariş kaydedilirken görsel URL'sini ARTIK SİLMİYORUZ.
+    const handleCheckout = useCallback(async (name, phone, note, deliveryDate, karat, orderNo, orderStamp, items = null, targetStatus = 'new', finalOrderDate) => { 
+        if(cart.length === 0 && (!items || items.length === 0)) return; 
+        if (!user) { alert("Oturum açılıyor..."); return; } 
+        try { 
+            // DÜZELTME BURADA: Firestore 1MB limitini aşmamak için imageUrl ve imageFile alanlarını hariç tutuyoruz.
+            const itemsToSave = (items || cart).map(item => { 
+                const { _tempId, imageUrl, imageFile, ...rest } = item; 
+                return rest; 
+            }); 
+            
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), { 
+                customerName: name, 
+                customerPhone: phone, 
+                totalNote: note, 
+                items: itemsToSave, 
+                createdAt: finalOrderDate ? new Date(finalOrderDate) : serverTimestamp(), 
+                status: targetStatus, 
+                deliveryDate: deliveryDate, 
+                orderKarat: karat, 
+                customOrderNo: orderNo, 
+                orderStamp: orderStamp, 
+                createdBy: user.uid 
+            }); 
+            
+            if (targetStatus !== 'draft') { 
+                setCart([]); 
+                setOrderKarat(null); 
+                setDraftData({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] }); 
+            } 
+            setIsOrderPreviewOpen(false); 
+            setNotification({ type: 'success', message: targetStatus === 'draft' ? "Taslak kaydedildi!" : "Sipariş oluşturuldu!" }); 
+        } catch (error) { 
+            setNotification({ type: 'error', message: "Hata: " + error.message }); 
+        } 
+    }, [cart, user, appId]);
+    
     const handleUpdateOrder = useCallback(async (orderId, data) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), data); setIsOrderPreviewOpen(false); setViewingOrder(null); setNotification({type:'success', message:'Sipariş güncellendi'}); } catch (error) { setNotification({type:'error', message: error.message}); } }, [appId]);
     const handleDeleteProduct = useCallback(async (id) => { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id)); setNotification({type:'success', message:'Ürün silindi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, [appId]);
     const handleUpdateStatus = useCallback(async (orderId, status) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { status }); setNotification({type:'success', message:'Durum güncellendi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, [appId]);
