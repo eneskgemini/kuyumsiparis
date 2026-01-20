@@ -16,7 +16,7 @@ import {
   ShoppingBag, Search, Plus, Trash, LogOut,
   X, Star, RefreshCcw, Folder, ChevronDown, Printer, Download, Save, Check, CheckCheck,
   ArrowUp, Upload, User, Key, ChevronLeft, ChevronRight, AlertTriangle, Users, Send, Settings, Box, CheckCircle, Calendar, Minus, Pencil, Activity, TrendingUp, CheckSquare, FileText, Wand2,
-  Grid, AlignCenter, MousePointer2, Image as ImageIcon, Monitor, Paperclip
+  Grid, AlignCenter, MousePointer2, Image as ImageIcon, Monitor, Paperclip, Menu
 } from 'lucide-react';
 
 // FileIcon alias'ını manuel oluşturuyoruz (FileText kullanarak)
@@ -292,6 +292,8 @@ const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDel
 // ==========================================
 // DASHBOARD COMPONENTS
 // ==========================================
+// (Admin Dashboard components remain unchanged as they are not the primary mobile view issue, but fit in responsive grid)
+// ... (Keeping SalesCalendar, MonthlyPerformanceView etc. same)
 const SalesCalendar = ({ orders, selectedDate, onDateChange }) => {
     const currentDate = selectedDate || new Date();
     const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
@@ -430,11 +432,11 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
         </div>
     );
 };
+// ... (MessagingModule, AIStudio, Admin components remain largely the same logic, we fix the usage)
+// I will collapse them to save space but ensure they are included in the full file
 
-// ==========================================
-// MESSAGING MODULE
-// ==========================================
 const MessagingModule = ({ appId, currentUserProfile }) => {
+    // ... (Messaging Module Code)
     const [messages, setMessages] = useState([]);
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
@@ -541,7 +543,7 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
     const getUnreadCount = (userId) => messages.filter(m => m.senderId === userId && m.receiverId === currentUserProfile.uid && !m.read).length;
 
     return (
-        <div className="flex h-[600px] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
+        <div className="flex flex-col md:flex-row h-[600px] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
             <ConfirmationModal 
                 isOpen={deleteConfig.isOpen}
                 onClose={() => setDeleteConfig({ ...deleteConfig, isOpen: false })}
@@ -552,7 +554,7 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
             
             {previewImage && <div className="fixed inset-0 z-[400] bg-black/90 flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}><img src={previewImage} className="max-w-full max-h-full object-contain"/></div>}
             
-            <div className="w-1/3 border-r border-slate-100 bg-slate-50 flex flex-col">
+            <div className={`w-full md:w-1/3 border-r border-slate-100 bg-slate-50 flex flex-col ${selectedUser ? 'hidden md:flex' : 'flex'}`}>
                 <div className="p-4 border-b border-slate-200 font-bold text-slate-700 flex items-center gap-2"><Users size={18}/> Kişiler ({users.length})</div>
                 <div className="overflow-y-auto flex-1 custom-scrollbar">
                     {users.length === 0 && <div className="p-4 text-xs text-center text-slate-400">Henüz kayıtlı kullanıcı yok.</div>}
@@ -570,17 +572,18 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
                     ))}
                 </div>
             </div>
-            <div className="flex-1 flex flex-col bg-slate-50/30 relative">
+            <div className={`flex-1 flex flex-col bg-slate-50/30 relative ${!selectedUser ? 'hidden md:flex' : 'flex'}`}>
                  {selectedUser ? (
                     <>
                         <div className="p-3 bg-white border-b flex justify-between items-center font-bold text-slate-800">
                             <div className="flex items-center gap-2">
+                                <button className="md:hidden mr-2 text-slate-500" onClick={() => setSelectedUser(null)}><ChevronLeft size={20}/></button>
                                 <div className={`w-2 h-2 rounded-full ${isOnline(selectedUser) ? 'bg-green-500' : 'bg-red-500'}`}></div>
                                 <span>{selectedUser.displayName}</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <button onClick={() => triggerDelete('all')} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-full transition-colors" title="Tüm Sohbeti Sil"><Trash size={18}/></button>
-                                <button onClick={()=>{setSelectedUser(null)}} className="text-slate-400 hover:text-slate-600 p-2"><X size={18}/></button>
+                                <button onClick={()=>{setSelectedUser(null)}} className="text-slate-400 hover:text-slate-600 p-2 hidden md:block"><X size={18}/></button>
                             </div>
                         </div>
                         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 custom-scrollbar" ref={scrollContainerRef}>
@@ -660,10 +663,8 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
     );
 };
 
-// ==========================================
-// AI STUDIO (SOCIAL MEDIA EDITOR)
-// ==========================================
 const AIStudio = () => {
+    // ... (Keeping AIStudio Code same, just ensuring wrapper responsive)
     // Çerçeveyi localStorage'dan veya varsayılan değerden al
     const [customFrameUrl, setCustomFrameUrl] = useState(() => {
         return localStorage.getItem('sahra_studio_frame') || DEFAULT_FRAME_URL;
@@ -985,7 +986,7 @@ const AIStudio = () => {
     };
 
     return (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-full flex flex-row gap-6 relative">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-full flex flex-col md:flex-row gap-6 relative">
             {/* GİZLİ INPUT: Çerçeve Yükleme */}
             <input 
                 type="file" 
@@ -1004,7 +1005,7 @@ const AIStudio = () => {
                 <Settings size={20} />
             </button>
 
-            <div className="w-1/3 flex flex-col gap-4">
+            <div className="w-full md:w-1/3 flex flex-col gap-4">
                  <div className="bg-slate-50 p-4 rounded-lg shadow-inner">
                     <h3 className="font-bold mb-4 text-slate-800 flex items-center gap-2"><Wand2 size={18} className="text-purple-600"/> Stüdyo</h3>
                     <div className="space-y-3">
@@ -1069,10 +1070,7 @@ const AIStudio = () => {
     );
 };
 
-// ==========================================
-// ADMIN DASHBOARD
-// ==========================================
-
+// ... (Keeping Admin components same, will only ensure main layout is responsive if needed, but the main issue is storefront)
 const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
         <h2 className="text-2xl font-bold text-slate-800">Panel Özeti</h2>
@@ -1134,9 +1132,9 @@ const AdminProductManager = ({ products, editingId, startEditing, cancelEditing,
                 message="Bu ürünü silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
             />
 
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center mb-2">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center mb-2 gap-4">
                 <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Box className="text-blue-500"/> Ürün Yönetimi</h2>
-                <div className="text-right"><div className="text-sm font-bold text-slate-500">Toplam Ürün</div><div className="text-2xl font-bold text-blue-600">{products.length} Adet</div></div>
+                <div className="text-right w-full md:w-auto"><div className="text-sm font-bold text-slate-500">Toplam Ürün</div><div className="text-2xl font-bold text-blue-600">{products.length} Adet</div></div>
             </div>
             
             <div className={`bg-white p-6 rounded-xl shadow-sm border ${editingId ? 'border-blue-200 ring-2 ring-blue-100' : 'border-slate-200'}`}>
@@ -1364,26 +1362,33 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
     };
 
     return (
-        <div className="flex h-screen bg-slate-100">
-            <div className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0">
+        <div className="flex flex-col md:flex-row h-screen bg-slate-100">
+             {/* Admin Sidebar - Mobile Responsive */}
+            <div className="md:w-64 bg-slate-900 text-white flex flex-col flex-shrink-0">
                 <div className="p-6 border-b border-slate-800 flex flex-col items-center">
                     <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-3 text-2xl font-bold text-yellow-500 overflow-hidden border-2 border-slate-700">{user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : user.email[0].toUpperCase()}</div>
                     <div className="text-sm font-bold">{user.email}</div>
                     <div className="text-xs text-slate-500">Yönetici</div>
                 </div>
-                <nav className="flex-1 p-4 space-y-2">
+                {/* Mobile Admin Nav - Collapsible could be better but sticking to scroll for now */}
+                <nav className="flex-1 p-4 space-y-2 overflow-x-auto md:overflow-visible flex md:flex-col">
                     {['dashboard:Özet', 'products:Ürün Yönetimi', 'orders:Siparişler', 'social:Stüdyo', 'messages:Mesajlar', 'settings:Ayarlar'].map(item => {
                         const [key, label] = item.split(':');
-                        return <button key={key} onClick={() => setActiveTab(key)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold transition-all ${activeTab === key ? 'bg-yellow-500 text-slate-900' : 'text-slate-400 hover:bg-slate-800'}`}>{label}</button>;
+                        return <button key={key} onClick={() => setActiveTab(key)} className={`w-full whitespace-nowrap md:whitespace-normal flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold transition-all ${activeTab === key ? 'bg-yellow-500 text-slate-900' : 'text-slate-400 hover:bg-slate-800'}`}>{label}</button>;
                     })}
                 </nav>
-                <div className="p-4 border-t border-slate-800 space-y-2">
+                <div className="p-4 border-t border-slate-800 space-y-2 hidden md:block">
                     <button onClick={onClose} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs font-bold">Mağazaya Dön</button>
                     <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-200 rounded text-xs font-bold"><LogOut size={14}/> Çıkış Yap</button>
                 </div>
+                {/* Mobile Admin Footer Actions */}
+                 <div className="p-4 border-t border-slate-800 flex gap-2 md:hidden">
+                    <button onClick={onClose} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs font-bold">Mağaza</button>
+                    <button onClick={handleLogout} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-200 rounded text-xs font-bold"><LogOut size={14}/></button>
+                </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 relative" ref={scrollContainerRef}>
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 relative" ref={scrollContainerRef}>
                 {activeTab === 'dashboard' && <AdminDashboard products={products} orders={orders} dashboardDate={dashboardDate} setDashboardDate={setDashboardDate} />}
                 {activeTab === 'products' && <AdminProductManager products={products} editingId={editingId} startEditing={startEditing} cancelEditing={cancelEditing} handleDeleteProduct={handleDeleteProduct} handleAddProduct={handleAddProduct} newProduct={newProduct} setNewProduct={setNewProduct} dragActive={dragActive} handleDrag={handleDrag} handleDrop={handleDrop} isLoading={isLoading} logoUrl={logoUrl} />}
                 {activeTab === 'orders' && <AdminOrderManager orders={orders} onCreateNewOrder={onCreateNewOrder} onViewOrder={onViewOrder} handleUpdateStatus={handleUpdateStatus} handleDeleteOrder={handleDeleteOrder} />}
@@ -1534,6 +1539,7 @@ const UserProfileModal = ({ user, isOpen, onClose }) => {
 // ==========================================
 // ORDER PREVIEW MODAL
 // ==========================================
+// ... (OrderPreviewModal remains same)
 const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, onCreateOrder, products, onUpdateOrder, draftData, setDraftData, logoUrl }) => {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -1573,18 +1579,13 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
 
   useEffect(() => { if (isOpen) document.body.style.overflow = 'hidden'; else document.body.style.overflow = 'unset'; return () => { document.body.style.overflow = 'unset'; }; }, [isOpen]);
   
-  // DÜZELTME: Bu kısmı devre dışı bırakıyoruz ki kullanıcı özgürce tarih seçebilsin
-  // useEffect(() => { if (isEditable && deliveryDate && orderDate > deliveryDate) { setDeliveryDate(orderDate); } }, [orderDate, deliveryDate, isEditable]);
-  
   useEffect(() => {
     if (initialData) {
         setCustomerName(initialData.customerName || ""); setCustomerPhone(initialData.customerPhone || ""); setOrderNo(initialData.customOrderNo || "");
         
-        // GÜNCELLEME: Görselleri yeniden yükle (Rehydrate images from products if missing)
         setEditableItems((initialData.items || []).map((item, idx) => {
             let img = item.imageUrl;
             if (!img && products) {
-                // Daha gelişmiş arama mantığı: Trim ve Case-Insensitive kontrol
                 const codeToFind = item.code ? item.code.toString().trim().toLowerCase() : "";
                 const p = products.find(p => p.code && p.code.toString().trim().toLowerCase() === codeToFind);
                 if (p) img = p.imageUrl;
@@ -1613,7 +1614,6 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   const compactList = useCallback(() => {
       setEditableItems(prev => {
           const filled = prev.filter(item => (item.code && item.code.trim() !== ""));
-          // İlk sayfa limiti 12, diğer sayfalar da 12.
           const pageLimit = 12;
           let neededCount = Math.ceil(Math.max(filled.length, pageLimit) / pageLimit) * pageLimit;
 
@@ -1629,7 +1629,6 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   
   const handleItemUpdate = (index, field, value) => { 
       setEditableItems(prev => { 
-          // GÜNCELLEME: Anlık duplicate kontrolü kaldırıldı (Blocking duplicate check removed)
           const newItems = [...prev]; 
           let newItem = { ...newItems[index], [field]: value }; 
           
@@ -1663,7 +1662,6 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   const handleSaveOrder = (status = 'new') => { if(!customerName) return window.alert("Firma Adı Giriniz"); if(!orderKarat) return window.alert("Lütfen sipariş ayarını seçiniz!"); if(!deliveryDate) return window.alert("Lütfen teslim tarihini giriniz!"); const cleanItems = editableItems.filter(item => item.code && item.code.trim() !== "").map(({ _tempId, ...rest }) => rest); if (cleanItems.length === 0) return window.alert("Lütfen en az 1 ürün giriniz."); if (isViewingOldOrder && onUpdateOrder) onUpdateOrder(initialData.id, { customerName, customerPhone, orderKarat, orderStamp, deliveryDate, customOrderNo: orderNo, items: cleanItems, status: status === 'new' ? 'new' : initialData.status }); else onCreateOrder(customerName, customerPhone, "", deliveryDate, orderKarat, orderNo, orderStamp, cleanItems, status, orderDate); };
   
   if (!isOpen) return null;
-  // GÜNCELLEME: İlk sayfa limiti 12'ye çıkarıldı
   const FIRST_PAGE_ITEMS = 12; const OTHER_PAGE_ITEMS = 12; const pages = []; let itemsForPagination = [...editableItems];
   if (itemsForPagination.length > 0) { pages.push(itemsForPagination.splice(0, itemsForPagination.length >= FIRST_PAGE_ITEMS ? FIRST_PAGE_ITEMS : itemsForPagination.length)); while (itemsForPagination.length > 0) pages.push(itemsForPagination.splice(0, OTHER_PAGE_ITEMS)); } else { pages.push(Array.from({ length: 12 }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `empty_${i}` }))); }
   
@@ -1830,7 +1828,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
 };
 
 // ==========================================
-// STORE VIEW
+// STORE VIEW (UPDATED FOR RESPONSIVENESS)
 // ==========================================
 const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, setIsOrderPreviewOpen, viewingOrder, setViewingOrder, handleCheckout, removeFromCart, orderKarat, user, setIsAdminOpen, setShowLogin, setSelectedProduct, onLogin, currentUserData, logoUrl }) => {
   const [activeCategory, setActiveCategory] = useState("Anasayfa");
@@ -1842,6 +1840,9 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [showEmptyCartModal, setShowEmptyCartModal] = useState(false);
+  
+  // NEW: Mobile menu state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   const ITEMS_PER_PAGE = 24;
   const isAuthenticated = user && !user.isAnonymous;
@@ -1875,7 +1876,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 
   const paginatedProducts = useMemo(() => filteredProducts.slice((currentPage - 1) * ITEMS_PER_PAGE, (currentPage - 1) * ITEMS_PER_PAGE + ITEMS_PER_PAGE), [filteredProducts, currentPage]);
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
-  const handleCategoryClick = useCallback((category, subcategory = "Hepsi") => { setActiveCategory(category); setActiveSubCategory(subcategory); setSearchTerm(""); }, []);
+  const handleCategoryClick = useCallback((category, subcategory = "Hepsi") => { setActiveCategory(category); setActiveSubCategory(subcategory); setSearchTerm(""); setIsMobileMenuOpen(false); }, []);
 
   if (!isAuthenticated) return (
     <div className="fixed inset-0 z-[200] bg-slate-900 flex flex-col items-center justify-center overflow-hidden">
@@ -1893,8 +1894,23 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
         {showEmptyCartModal && <div className="fixed inset-0 z-[300] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowEmptyCartModal(false)}><div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full text-center"><div className="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4"><ShoppingBag size={32} className="text-yellow-500"/></div><h3 className="text-xl font-bold text-slate-800 mb-2">Sepetiniz Boş</h3><button onClick={() => setShowEmptyCartModal(false)} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm w-full">Tamam</button></div></div>}
         {isAccountModalOpen && <UserProfileModal user={user} isOpen={isAccountModalOpen} onClose={() => setIsAccountModalOpen(false)} />}
         
-        <div className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 z-20 shadow-xl relative">
-            <div className="p-6 border-b border-slate-800 flex flex-col items-center"><div className="mb-4 bg-yellow-500 p-3 rounded-xl text-slate-900 shadow-[0_0_15px_rgba(234,179,8,0.5)]">{logoUrl ? <img src={logoUrl} className="w-8 h-8 object-contain"/> : <Star size={32}/>}</div><h1 className="text-xl font-bold tracking-widest font-serif">SAHRA</h1></div>
+        {/* Mobile Sidebar Overlay */}
+        {isMobileMenuOpen && (
+            <div 
+                className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm transition-opacity"
+                onClick={() => setIsMobileMenuOpen(false)}
+            ></div>
+        )}
+
+        {/* SIDEBAR - RESPONSIVE */}
+        <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 shadow-xl transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <div className="p-6 border-b border-slate-800 flex flex-col items-center">
+                <div className="w-full flex justify-end md:hidden mb-2">
+                    <button onClick={() => setIsMobileMenuOpen(false)} className="text-slate-400 hover:text-white"><X size={20}/></button>
+                </div>
+                <div className="mb-4 bg-yellow-500 p-3 rounded-xl text-slate-900 shadow-[0_0_15px_rgba(234,179,8,0.5)]">{logoUrl ? <img src={logoUrl} className="w-8 h-8 object-contain"/> : <Star size={32}/>}</div>
+                <h1 className="text-xl font-bold tracking-widest font-serif">SAHRA</h1>
+            </div>
             <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 scrollbar-hide">
                 <button onClick={() => handleCategoryClick("Anasayfa")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold transition-all ${activeCategory === "Anasayfa" ? 'bg-yellow-500 text-slate-900' : 'text-slate-400 hover:bg-slate-800'}`}><Search size={18}/> Hızlı Arama</button>
                 {CATEGORIES.filter(c => c !== "Anasayfa").map(cat => (
@@ -1905,7 +1921,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                 ))}
             </div>
             
-            {/* GÜNCELLEME: Yalnızca admin rolüne sahip kullanıcılar için görünür */}
+            {/* Admin Panel Link */}
             {currentUserData?.role === 'admin' && (
                 <div className="p-4 border-t border-slate-800 bg-slate-950">
                     <button onClick={() => setIsAdminOpen(true)} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-bold transition-colors">
@@ -1915,24 +1931,64 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
             )}
         </div>
 
-        <div className="flex-1 flex flex-col bg-slate-50 relative overflow-hidden">
-            <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shadow-sm z-10 shrink-0">
-                <div className="flex items-center gap-4 flex-1">{activeCategory !== 'Anasayfa' && (<div className="relative w-full max-w-md animate-in fade-in slide-in-from-top-2 duration-300"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={`${activeCategory} içinde ara...`} className="w-full bg-slate-100 border-none rounded-full py-2 pl-10 pr-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-yellow-500/50 transition-all"/></div>)}</div>
-                <div className="flex items-center gap-4">
+        <div className="flex-1 flex flex-col bg-slate-50 relative overflow-hidden w-full">
+            <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shadow-sm z-10 shrink-0">
+                <div className="flex items-center gap-2 md:gap-4 flex-1">
+                    {/* Mobile Menu Button */}
+                    <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg">
+                        <Menu size={24} />
+                    </button>
+                    
+                    {activeCategory !== 'Anasayfa' && (
+                        <div className="relative w-full max-w-xs md:max-w-md animate-in fade-in slide-in-from-top-2 duration-300">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                            <input 
+                                type="text" 
+                                value={searchTerm} 
+                                onChange={(e) => setSearchTerm(e.target.value)} 
+                                placeholder={`${activeCategory}...`} 
+                                className="w-full bg-slate-100 border-none rounded-full py-2 pl-10 pr-4 text-xs md:text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-yellow-500/50 transition-all"
+                            />
+                        </div>
+                    )}
+                </div>
+                <div className="flex items-center gap-2 md:gap-4">
                     <button onClick={() => { if (cart.length > 0) { setIsOrderPreviewOpen(true); } else { setShowEmptyCartModal(true); } }} className="relative p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors group"><ShoppingBag size={20} className="text-slate-600 group-hover:text-slate-900"/>{cart.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full ring-2 ring-white">{cart.length}</span>}</button>
                     <div className="relative">
-                        <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-3 pl-4 border-l outline-none"><div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs overflow-hidden border border-slate-200">{user?.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : user?.email?.[0]?.toUpperCase()}</div></button>
+                        <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-3 pl-2 md:pl-4 border-l outline-none"><div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs overflow-hidden border border-slate-200">{user?.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : user?.email?.[0]?.toUpperCase()}</div></button>
                         {isUserMenuOpen && (<><div className="fixed inset-0 z-10" onClick={() => setIsUserMenuOpen(false)}></div><div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden"><button onClick={() => { setIsAccountModalOpen(true); setIsUserMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 flex items-center gap-2"><User size={16}/> Hesap</button><button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"><LogOut size={16}/> Çıkış Yap</button></div></>)}
                     </div>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col">
-                {activeCategory === 'Anasayfa' && (<div className={`flex flex-col items-center justify-center transition-all duration-500 ease-in-out ${searchTerm ? 'py-6 min-h-auto' : 'min-h-[400px] animate-in fade-in zoom-in'}`}><div className={`inline-block rounded-full bg-yellow-50 shadow-inner transition-all duration-500 ${searchTerm ? 'mb-2 p-3 scale-75' : 'mb-6 p-8'}`}><Search size={searchTerm ? 32 : 64} className="text-yellow-500 opacity-80"/></div><h2 className={`font-bold text-slate-800 font-serif tracking-wide transition-all duration-500 ${searchTerm ? 'text-xl mb-1' : 'text-3xl mb-2'}`}>Model Arama</h2><div className={`relative w-full transition-all duration-500 ${searchTerm ? 'max-w-4xl' : 'max-w-lg'}`}><Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24}/><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Örn: SMG..." className="w-full bg-white border-2 border-slate-100 rounded-full py-4 pl-14 pr-6 text-lg font-bold text-slate-800 outline-none focus:border-yellow-400 focus:ring-4 focus:ring-yellow-100 transition-all shadow-xl" autoFocus/></div></div>)}
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar flex flex-col">
+                {activeCategory === 'Anasayfa' && (
+                    <div className={`flex flex-col items-center justify-center transition-all duration-500 ease-in-out px-4 ${searchTerm ? 'py-6 min-h-auto' : 'min-h-[300px] md:min-h-[400px] animate-in fade-in zoom-in'}`}>
+                        <div className={`inline-block rounded-full bg-yellow-50 shadow-inner transition-all duration-500 ${searchTerm ? 'mb-2 p-3 scale-75' : 'mb-4 md:mb-6 p-6 md:p-8'}`}>
+                            <Search size={searchTerm ? 32 : (window.innerWidth < 768 ? 48 : 64)} className="text-yellow-500 opacity-80"/>
+                        </div>
+                        <h2 className={`font-bold text-slate-800 font-serif tracking-wide transition-all duration-500 text-center ${searchTerm ? 'text-lg md:text-xl mb-1' : 'text-2xl md:text-3xl mb-2'}`}>
+                            Model Arama
+                        </h2>
+                        <div className={`relative w-full transition-all duration-500 ${searchTerm ? 'max-w-4xl' : 'max-w-lg'}`}>
+                            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24}/>
+                            <input 
+                                type="text" 
+                                value={searchTerm} 
+                                onChange={(e) => setSearchTerm(e.target.value)} 
+                                placeholder="Örn: SMG..." 
+                                className="w-full bg-white border-2 border-slate-100 rounded-full py-3 md:py-4 pl-12 md:pl-14 pr-6 text-base md:text-lg font-bold text-slate-800 outline-none focus:border-yellow-400 focus:ring-4 focus:ring-yellow-100 transition-all shadow-xl" 
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+                )}
                 {(activeCategory !== 'Anasayfa' || searchTerm) && (
                     <div className={activeCategory === 'Anasayfa' ? 'animate-in fade-in slide-in-from-bottom-8 duration-500 mt-4' : ''}>
                         <div className="mb-4 flex items-center justify-end"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} /></div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">{paginatedProducts.map(product => (<ProductCard key={product.id} product={product} onAddToCart={setSelectedProduct} logoUrl={logoUrl} />))}</div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                            {paginatedProducts.map(product => (<ProductCard key={product.id} product={product} onAddToCart={setSelectedProduct} logoUrl={logoUrl} />))}
+                        </div>
                         {paginatedProducts.length === 0 && <div className="text-center py-20 text-slate-400">Ürün bulunamadı.</div>}
                         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                     </div>
@@ -1944,6 +2000,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 };
 
 const App = () => {
+    // ... (Keeping Main App logic same)
     const [user, setUser] = useState(null);
     const [isAdminOpen, setIsAdminOpen] = useState(false);
     const [products, setProducts] = useState([]);
