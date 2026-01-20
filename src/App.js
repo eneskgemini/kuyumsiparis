@@ -16,7 +16,7 @@ import {
   ShoppingBag, Search, Plus, Trash, LogOut,
   X, Star, RefreshCcw, Folder, ChevronDown, Printer, Download, Save, Check, CheckCheck,
   ArrowUp, Upload, User, Key, ChevronLeft, ChevronRight, AlertTriangle, Users, Send, Settings, Box, CheckCircle, Calendar, Minus, Pencil, Activity, TrendingUp, CheckSquare, FileText, Wand2,
-  Grid, AlignCenter, MousePointer2, Image as ImageIcon, Monitor, Paperclip, Menu
+  Grid, AlignCenter, MousePointer2, Image as ImageIcon, Monitor, Paperclip, Menu, Loader2, FileUp, Bell
 } from 'lucide-react';
 
 // FileIcon alias'ını manuel oluşturuyoruz (FileText kullanarak)
@@ -99,7 +99,7 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                const MAX_SIZE = 2000; 
+                const MAX_SIZE = 1200; // Optimize edilmiş boyut (Daha hızlı yükleme için 2000'den 1200'e düşürüldü)
                 if (width > MAX_SIZE || height > MAX_SIZE) {
                     const ratio = Math.min(MAX_SIZE / width, MAX_SIZE / height);
                     width *= ratio;
@@ -112,14 +112,10 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 ctx.fillRect(0, 0, width, height);
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                let quality = 0.85; 
+                let quality = 0.8; 
                 let dataUrl = canvas.toDataURL('image/jpeg', quality);
-                const MAX_CHARS = 1000000; 
                 
-                while (dataUrl.length > MAX_CHARS && quality > 0.2) {
-                    quality -= 0.1;
-                    dataUrl = canvas.toDataURL('image/jpeg', quality);
-                }
+                // Base64 string'i döndür
                 resolve({ base64: dataUrl, type: 'image' });
             };
             img.onerror = () => reject(new Error("Görsel işlenemedi."));
@@ -292,8 +288,6 @@ const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDel
 // ==========================================
 // DASHBOARD COMPONENTS
 // ==========================================
-// (Admin Dashboard components remain unchanged as they are not the primary mobile view issue, but fit in responsive grid)
-// ... (Keeping SalesCalendar, MonthlyPerformanceView etc. same)
 const SalesCalendar = ({ orders, selectedDate, onDateChange }) => {
     const currentDate = selectedDate || new Date();
     const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
@@ -352,7 +346,7 @@ const SalesCalendar = ({ orders, selectedDate, onDateChange }) => {
                 <div className="flex items-center gap-2"><button onClick={() => changeMonth(-1)}><ChevronLeft size={20}/></button><span className="text-sm font-bold w-32 text-center">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</span><button onClick={() => changeMonth(1)}><ChevronRight size={20}/></button></div>
             </div>
             <div className="grid grid-cols-7 text-center text-xs font-bold text-slate-500 bg-slate-100 py-2 border-b border-slate-200"><div>Pzt</div><div>Sal</div><div>Çar</div><div>Per</div><div>Cum</div><div>Cmt</div><div>Paz</div></div>
-            <div className="grid grid-cols-7 relative">{renderDays()}{selectedDayDetail && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-lg shadow-2xl border-2 border-yellow-400 w-64 p-4"><h4 className="font-bold mb-2">{selectedDayDetail.day} {monthNames[currentDate.getMonth()]}</h4>{selectedDayDetail.orders.map((o,i)=><div key={i} className="flex justify-between text-xs border-b py-1"><span>{o.name}</span><span className="font-bold">{o.gram}gr</span></div>)}<button onClick={()=>setSelectedDayDetail(null)} className="mt-2 w-full bg-slate-100 text-xs py-1 font-bold">Kapat</button></div>}</div>
+            <div className="grid grid-cols-7 relative">{renderDays()}{selectedDayDetail && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-lg shadow-2xl border-2 border-yellow-400 w-64 p-4"><h4 className="font-bold mb-2">{selectedDayDetail.day} {monthNames[currentDate.getMonth()]}</h4>{selectedDayDetail.orders.map((o,i)=><div key={i} className="flex justify-between text-xs border-b py-1"><span className="capitalize">{o.name ? o.name.toLowerCase() : ""}</span><span className="font-bold">{o.gram}gr</span></div>)}<button onClick={()=>setSelectedDayDetail(null)} className="mt-2 w-full bg-slate-100 text-xs py-1 font-bold">Kapat</button></div>}</div>
             <div className="p-4 bg-green-50 border-t border-green-100 flex justify-between items-center"><div className="flex items-center gap-2 text-green-800"><TrendingUp size={20} /><span className="font-bold text-sm">Bu Ay Toplam</span></div><div className="text-xl font-bold text-green-700">{monthlyTotalGram} gr</div></div>
         </div>
     );
@@ -432,20 +426,20 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
         </div>
     );
 };
-// ... (MessagingModule, AIStudio, Admin components remain largely the same logic, we fix the usage)
-// I will collapse them to save space but ensure they are included in the full file
 
 const MessagingModule = ({ appId, currentUserProfile }) => {
-    // ... (Messaging Module Code)
     const [messages, setMessages] = useState([]);
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
     const [newMessage, setNewMessage] = useState("");
     const [previewImage, setPreviewImage] = useState(null); 
     const [deleteConfig, setDeleteConfig] = useState({ isOpen: false, type: null, id: null, title: '', message: '' });
+    const [isUploading, setIsUploading] = useState(false);
+    const [isDragOver, setIsDragOver] = useState(false);
 
     const messagesEndRef = useRef(null); 
     const scrollContainerRef = useRef(null); 
+    const fileInputRef = useRef(null);
 
     const isOnline = (user) => {
         if (!user) return false;
@@ -503,7 +497,107 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
         scrollToBottom('auto'); 
     }, [messages, selectedUser]);
     
-    const handleSendMessage = async (e) => { e.preventDefault(); if(!newMessage.trim() || !selectedUser) return; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), { content: newMessage, senderId: currentUserProfile.uid, senderName: currentUserProfile.displayName || currentUserProfile.email, senderEmail: currentUserProfile.email, receiverId: selectedUser.uid, receiverName: selectedUser.displayName || selectedUser.email, createdAt: serverTimestamp(), read: false, type: 'text' }); setNewMessage(""); };
+    const handleSendMessage = async (e) => { 
+        e.preventDefault(); 
+        if(!newMessage.trim() || !selectedUser) return; 
+        
+        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), { 
+            content: newMessage, 
+            senderId: currentUserProfile.uid, 
+            senderName: currentUserProfile.displayName || currentUserProfile.email, 
+            senderEmail: currentUserProfile.email, 
+            receiverId: selectedUser.uid, 
+            receiverName: selectedUser.displayName || selectedUser.email, 
+            createdAt: serverTimestamp(), 
+            read: false, 
+            type: 'text' 
+        }); 
+        setNewMessage(""); 
+    };
+
+    const uploadFile = async (file) => {
+        if (!file || !selectedUser) return;
+
+        // Boyut kontrolü (örn. 25MB)
+        if (file.size > 25 * 1024 * 1024) {
+            alert("Dosya boyutu çok büyük (Maksimum 25MB).");
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            // YENİ YÖNTEM: Direkt Upload (Raw File Upload)
+            // Canvas resize işlemi kaldırıldı, doğrudan storage'a yükleniyor.
+            
+            const storageRef = ref(storage, `chat_attachments/${Date.now()}_${file.name}`);
+            const uploadTask = await uploadBytesResumable(storageRef, file);
+            const downloadUrl = await getDownloadURL(uploadTask.ref);
+            
+            const isImage = file.type.startsWith('image/');
+            const messageData = {
+                senderId: currentUserProfile.uid,
+                senderName: currentUserProfile.displayName || currentUserProfile.email,
+                senderEmail: currentUserProfile.email,
+                receiverId: selectedUser.uid,
+                receiverName: selectedUser.displayName || selectedUser.email,
+                createdAt: serverTimestamp(),
+                read: false,
+                type: isImage ? 'image' : 'file',
+                content: isImage ? 'Görsel gönderildi' : 'Dosya gönderildi',
+                fileName: file.name,
+                fileSize: file.size
+            };
+
+            if (isImage) {
+                messageData.imageUrl = downloadUrl;
+            } else {
+                messageData.fileUrl = downloadUrl;
+            }
+
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), messageData);
+        } catch (error) {
+            console.error("Dosya yükleme hatası:", error);
+            alert("Dosya gönderilemedi: " + error.message);
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleInputFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            uploadFile(file);
+        }
+    };
+
+    // Sürükle Bırak Olayları
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isDragOver) setIsDragOver(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Eğer fare container'ın bir çocuğuna (örn: mesaj balonuna) giriyorsa
+        // aslında container'dan çıkmamışızdır.
+        if (e.currentTarget.contains(e.relatedTarget)) {
+            return;
+        }
+        setIsDragOver(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            uploadFile(file);
+        }
+    };
     
     const triggerDelete = (type, id = null) => {
         setDeleteConfig({
@@ -586,7 +680,24 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
                                 <button onClick={()=>{setSelectedUser(null)}} className="text-slate-400 hover:text-slate-600 p-2 hidden md:block"><X size={18}/></button>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 custom-scrollbar" ref={scrollContainerRef}>
+                        
+                        {/* Mesaj Alanı ve Drag & Drop */}
+                        <div 
+                            className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 custom-scrollbar relative" 
+                            ref={scrollContainerRef}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                        >
+                            {/* Drag & Drop Overlay */}
+                            {isDragOver && (
+                                <div className="absolute inset-0 z-50 bg-blue-50/90 border-4 border-dashed border-blue-400 rounded-lg flex flex-col items-center justify-center animate-in fade-in duration-200 backdrop-blur-sm m-2 pointer-events-none">
+                                    <FileUp size={64} className="text-blue-500 mb-4 animate-bounce" />
+                                    <h3 className="text-xl font-bold text-blue-800">Dosyayı Buraya Bırakın</h3>
+                                    <p className="text-blue-600 font-medium">Göndermek için sürükleyip bırakın</p>
+                                </div>
+                            )}
+
                             {messages.filter(m => (m.senderId === currentUserProfile.uid && m.receiverId === selectedUser.uid) || (m.senderId === selectedUser.uid && m.receiverId === currentUserProfile.uid)).map(m => (
                                 <div key={m.id} className={`flex ${m.senderId === currentUserProfile.uid ? 'justify-end' : 'justify-start'} group relative items-end gap-2`}>
                                     
@@ -650,11 +761,35 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
                                     </div>
                                 </div>
                             ))}
+                            {isUploading && (
+                                <div className="flex justify-end">
+                                    <div className="bg-slate-100 text-slate-600 rounded-2xl rounded-br-none p-3 text-xs font-bold flex items-center gap-2">
+                                        <Loader2 size={14} className="animate-spin" />
+                                        Dosya yükleniyor...
+                                    </div>
+                                </div>
+                            )}
                             <div ref={messagesEndRef}></div>
                         </div>
                         <form onSubmit={handleSendMessage} className="p-3 bg-white border-t flex gap-2 items-center">
-                            <input className="flex-1 bg-slate-100 border-0 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-100 outline-none" placeholder="Mesaj..." value={newMessage} onChange={e => setNewMessage(e.target.value)} />
-                            <button type="submit" className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-full p-2 transition-colors"><Send size={18}/></button>
+                            <input 
+                                type="file" 
+                                className="hidden" 
+                                ref={fileInputRef} 
+                                onChange={handleInputFileChange}
+                            />
+                            <button 
+                                type="button" 
+                                onClick={() => fileInputRef.current.click()}
+                                className="bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-full p-2 transition-colors flex items-center gap-2 px-3"
+                                title="Dosya Ekle"
+                                disabled={isUploading}
+                            >
+                                <Paperclip size={18}/>
+                                <span className="text-xs font-bold hidden md:inline">Dosya</span>
+                            </button>
+                            <input className="flex-1 bg-slate-100 border-0 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-100 outline-none" placeholder="Mesaj... (Sürükle bırak yapabilirsiniz)" value={newMessage} onChange={e => setNewMessage(e.target.value)} />
+                            <button type="submit" disabled={isUploading || !newMessage.trim()} className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-full p-2 transition-colors disabled:opacity-50"><Send size={18}/></button>
                         </form>
                     </>
                  ) : <div className="flex-1 flex items-center justify-center text-slate-400">Kişi Seçin</div>}
@@ -664,28 +799,24 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
 };
 
 const AIStudio = () => {
-    // ... (Keeping AIStudio Code same, just ensuring wrapper responsive)
-    // Çerçeveyi localStorage'dan veya varsayılan değerden al
     const [customFrameUrl, setCustomFrameUrl] = useState(() => {
         return localStorage.getItem('sahra_studio_frame') || DEFAULT_FRAME_URL;
     });
 
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
-    const frameInputRef = useRef(null); // Gizli dosya inputu için ref
+    const frameInputRef = useRef(null); 
     const [userImage, setUserImage] = useState(null);
     const [frameImage, setFrameImage] = useState(null);
     const [imgState, setImgState] = useState({ x: 0, y: 0, w: 200, h: 200, aspect: 1 });
     const [prodCode, setProdCode] = useState("");
     const [prodGram, setProdGram] = useState("");
     
-    // GÜNCELLEME: Sürükleme ve Boyutlandırma state'leri
     const [showGrid, setShowGrid] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
-    const [dragType, setDragType] = useState(null); // 'move' or 'resize'
-    const [activeHandle, setActiveHandle] = useState(null); // 'tl', 'tr', 'bl', 'br'
+    const [dragType, setDragType] = useState(null); 
+    const [activeHandle, setActiveHandle] = useState(null); 
     
-    // GÜNCELLEME: React state gecikmesini önlemek için ref kullanıyoruz
     const startPosRef = useRef({ x: 0, y: 0 });
     const startImgStateRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
 
@@ -698,14 +829,12 @@ const AIStudio = () => {
         }
     }, [customFrameUrl]);
 
-    // Ayarlar butonuna tıklanınca dosya seçiciyi aç
     const handleFrameSettingsClick = () => {
         if(frameInputRef.current) {
             frameInputRef.current.click();
         }
     };
 
-    // Dosya seçildiğinde çerçeveyi güncelle ve kaydet
     const handleFrameSettingsUpload = (e) => {
         const file = e.target.files[0];
         if (file) {
@@ -713,17 +842,15 @@ const AIStudio = () => {
              reader.onload = (evt) => {
                  const res = evt.target.result;
                  setCustomFrameUrl(res);
-                 localStorage.setItem('sahra_studio_frame', res); // Kalıcı olarak sakla
+                 localStorage.setItem('sahra_studio_frame', res); 
              };
              reader.readAsDataURL(file);
         }
     };
 
-    // Yardımcı: Mouse pozisyonunu canvas koordinatlarına çevir
     const getMousePos = (e) => {
         const canvas = canvasRef.current;
         const rect = canvas.getBoundingClientRect();
-        // Scale faktörünü hesaba kat (CSS boyutu vs Canvas boyutu)
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
         return {
@@ -738,46 +865,35 @@ const AIStudio = () => {
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // 1. Çerçeveyi Çiz
         if (frameImage) ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
         
-        // 2. Kullanıcı Resmini Çiz
         if (userImage) {
             ctx.drawImage(userImage, imgState.x, imgState.y, imgState.w, imgState.h);
             
-            // Eğer resim varsa ve export modunda değilsek
             if (!isExport) {
                 const handleSize = 10;
-                ctx.strokeStyle = "#2563eb"; // Blue 600
+                ctx.strokeStyle = "#2563eb"; 
                 ctx.lineWidth = 2;
                 
-                // Seçim kutusu
                 ctx.strokeRect(imgState.x, imgState.y, imgState.w, imgState.h);
                 
-                // Köşe tutamaçları
                 ctx.fillStyle = "#ffffff";
-                // Sol Üst
                 ctx.fillRect(imgState.x - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize);
                 ctx.strokeRect(imgState.x - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize);
-                // Sağ Üst
                 ctx.fillRect(imgState.x + imgState.w - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize);
                 ctx.strokeRect(imgState.x + imgState.w - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize);
-                // Sol Alt
                 ctx.fillRect(imgState.x - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize);
                 ctx.strokeRect(imgState.x - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize);
-                // Sağ Alt
                 ctx.fillRect(imgState.x + imgState.w - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize);
                 ctx.strokeRect(imgState.x + imgState.w - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize);
             }
         }
 
-        // 3. Izgarayı Çiz (Eğer aktifse ve export değilse)
         if (showGrid && !isExport) {
             ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
             ctx.lineWidth = 1;
             const gridSize = 50;
             
-            // Dikey çizgiler
             for (let x = 0; x <= canvas.width; x += gridSize) {
                 ctx.beginPath();
                 ctx.moveTo(x, 0);
@@ -785,7 +901,6 @@ const AIStudio = () => {
                 ctx.stroke();
             }
             
-            // Yatay çizgiler
             for (let y = 0; y <= canvas.height; y += gridSize) {
                 ctx.beginPath();
                 ctx.moveTo(0, y);
@@ -793,14 +908,12 @@ const AIStudio = () => {
                 ctx.stroke();
             }
             
-            // Merkez çizgileri (Kırmızı)
             ctx.strokeStyle = "rgba(255, 0, 0, 0.4)";
             ctx.lineWidth = 2;
             ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, canvas.height); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(0, canvas.height/2); ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke();
         }
 
-        // 4. Metinleri Çiz
         if (prodCode || prodGram) {
             ctx.textAlign = "right"; 
             ctx.fillStyle = "#000000";
@@ -808,15 +921,11 @@ const AIStudio = () => {
             const alignRightX = canvas.width - 40;
 
             if(prodGram) {
-                 // GÜNCELLEME: Gram için Myriad Arabic Regular 38pt
                  ctx.font = "normal 38pt 'Myriad Arabic', sans-serif";
-                 // Trim ile boşlukları temizle
                  ctx.fillText(prodGram.trim() + " gr", alignRightX, canvas.height - 40);
             }
             if(prodCode) {
-                // GÜNCELLEME: Kod için Myriad Arabic Bold 40pt
                 ctx.font = "bold 40pt 'Myriad Arabic', sans-serif";
-                // Trim ile boşlukları temizle
                 ctx.fillText(prodCode.trim(), alignRightX, canvas.height - 100);
             }
         }
@@ -830,7 +939,6 @@ const AIStudio = () => {
             const img = new Image(); 
             img.onload = () => { 
                 setUserImage(img);
-                // Başlangıçta ortala
                 const canvas = canvasRef.current;
                 const aspect = img.width / img.height;
                 const initialW = 300;
@@ -847,46 +955,35 @@ const AIStudio = () => {
         }
     };
 
-    // GÜNCELLEME: Mouse Event Handler'ları (ref kullanarak)
     const handleMouseDown = (e) => {
         if (!userImage) return;
         const pos = getMousePos(e);
-        const handleSize = 20; // Tıklama alanı biraz daha geniş olsun (Daha kolay tutuş)
+        const handleSize = 20; 
 
         let currentType = null;
         let currentHandle = null;
 
-        // Köşe Kontrolü (Resize)
-        // TL
         if (Math.abs(pos.x - imgState.x) < handleSize && Math.abs(pos.y - imgState.y) < handleSize) {
             currentType = 'resize'; currentHandle = 'tl';
         }
-        // TR
         else if (Math.abs(pos.x - (imgState.x + imgState.w)) < handleSize && Math.abs(pos.y - imgState.y) < handleSize) {
             currentType = 'resize'; currentHandle = 'tr';
         }
-        // BL
         else if (Math.abs(pos.x - imgState.x) < handleSize && Math.abs(pos.y - (imgState.y + imgState.h)) < handleSize) {
             currentType = 'resize'; currentHandle = 'bl';
         }
-        // BR
         else if (Math.abs(pos.x - (imgState.x + imgState.w)) < handleSize && Math.abs(pos.y - (imgState.y + imgState.h)) < handleSize) {
             currentType = 'resize'; currentHandle = 'br';
         }
-        // Resim Üzeri (Move)
         else if (pos.x > imgState.x && pos.x < imgState.x + imgState.w && pos.y > imgState.y && pos.y < imgState.y + imgState.h) {
             currentType = 'move'; currentHandle = null;
         }
 
         if (currentType) {
-            // State güncellemeleri
             setDragType(currentType); 
             setActiveHandle(currentHandle); 
             setIsDragging(true);
 
-            // KRİTİK DÜZELTME:
-            // React state güncellemeleri asenkrondur. Bu yüzden ref'leri HEMEN güncellememiz gerekir.
-            // Aksi takdirde handleMouseMove ilk çalıştığında startPosRef boş kalır ve görsel zıplar.
             startPosRef.current = pos;
             startImgStateRef.current = { ...imgState };
         }
@@ -914,8 +1011,6 @@ const AIStudio = () => {
             let newX = startState.x;
             let newY = startState.y;
 
-            // Aspect ratio koruyarak resize
-            
             if (activeHandle === 'br') {
                 newW = startState.w + dx;
                 newH = newW / imgState.aspect;
@@ -934,7 +1029,6 @@ const AIStudio = () => {
                 newY = startState.y - (newH - startState.h);
             }
 
-            // Minimum boyut kontrolü
             if (newW > 20 && newH > 20) {
                 setImgState({
                     ...imgState,
@@ -953,7 +1047,6 @@ const AIStudio = () => {
         setActiveHandle(null);
     };
 
-    // GÜNCELLEME: Ortala Fonksiyonu
     const centerImage = () => {
         if (!userImage) return;
         const canvas = canvasRef.current;
@@ -964,12 +1057,9 @@ const AIStudio = () => {
         }));
     };
     
-    // GÜNCELLEME: İndirme Fonksiyonu - Temiz Çizim
     const handleDownloadImage = () => {
-        // Önce temiz çiz (UI yok)
         draw(true);
         
-        // Kısa bir gecikmeyle indir (rendering bitmesi için)
         setTimeout(() => {
              try {
                  const link = document.createElement('a');
@@ -979,7 +1069,6 @@ const AIStudio = () => {
              } catch(e) {
                  console.error("İndirme hatası", e);
              } finally {
-                 // UI'ı geri getir
                  draw(false);
              }
         }, 50);
@@ -987,7 +1076,6 @@ const AIStudio = () => {
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-full flex flex-col md:flex-row gap-6 relative">
-            {/* GİZLİ INPUT: Çerçeve Yükleme */}
             <input 
                 type="file" 
                 ref={frameInputRef} 
@@ -996,7 +1084,6 @@ const AIStudio = () => {
                 accept="image/*"
             />
             
-            {/* AYARLAR BUTONU: Sağ Üst Köşe */}
             <button 
                 onClick={handleFrameSettingsClick}
                 className="absolute top-4 right-4 z-20 p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors shadow-sm"
@@ -1009,7 +1096,6 @@ const AIStudio = () => {
                  <div className="bg-slate-50 p-4 rounded-lg shadow-inner">
                     <h3 className="font-bold mb-4 text-slate-800 flex items-center gap-2"><Wand2 size={18} className="text-purple-600"/> Stüdyo</h3>
                     <div className="space-y-3">
-                        {/* Çerçeve Görseli Input'u Kaldırıldı (Kullanıcı İsteği) */}
                         
                         <div>
                             <label className="text-xs font-bold text-slate-500 mb-1 flex items-center gap-1"><Monitor size={12}/> Ürün Görseli</label>
@@ -1070,26 +1156,41 @@ const AIStudio = () => {
     );
 };
 
-// ... (Keeping Admin components same, will only ensure main layout is responsive if needed, but the main issue is storefront)
-const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-        <h2 className="text-2xl font-bold text-slate-800">Panel Özeti</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <div className="text-slate-500 text-sm font-bold mb-1">Toplam Ürün</div>
-                <div className="text-3xl font-bold text-slate-800">{products.length}</div>
+const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) => {
+    
+    // Yeni İstatistik Hesabı: Atölyede (Preparing) olan siparişlerin sayısı ve toplam gramı
+    const workshopStats = useMemo(() => {
+        const preparing = orders.filter(o => o.status === 'preparing');
+        const count = preparing.length;
+        const totalGram = preparing.reduce((acc, order) => {
+             const orderGram = order.items ? order.items.reduce((iAcc, item) => iAcc + (parseGram(item.gram) * (parseInt(item.quantity) || 1)), 0) : 0;
+             return acc + orderGram;
+        }, 0);
+        return { count, totalGram: totalGram.toFixed(2) };
+    }, [orders]);
+
+    return (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            <h2 className="text-2xl font-bold text-slate-800">Panel Özeti</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="text-slate-500 text-sm font-bold mb-1">Toplam Ürün</div>
+                    <div className="text-3xl font-bold text-slate-800">{products.length}</div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div className="text-slate-500 text-sm font-bold mb-1">Atölyede Olan Sipariş</div>
+                    <div className="text-3xl font-bold text-slate-800">
+                        {workshopStats.count} <span className="text-lg font-medium text-slate-500">({workshopStats.totalGram} gr)</span>
+                    </div>
+                </div>
             </div>
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <div className="text-slate-500 text-sm font-bold mb-1">Toplam Sipariş</div>
-                <div className="text-3xl font-bold text-slate-800">{orders.length}</div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <SalesCalendar orders={orders} selectedDate={dashboardDate} onDateChange={setDashboardDate} />
+                <MonthlyPerformanceView orders={orders} selectedDate={dashboardDate} />
             </div>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SalesCalendar orders={orders} selectedDate={dashboardDate} onDateChange={setDashboardDate} />
-            <MonthlyPerformanceView orders={orders} selectedDate={dashboardDate} />
-        </div>
-    </div>
-);
+    );
+};
 
 const AdminProductManager = ({ products, editingId, startEditing, cancelEditing, handleDeleteProduct, handleAddProduct, newProduct, setNewProduct, dragActive, handleDrag, handleDrop, isLoading, logoUrl }) => {
     const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, productId: null });
@@ -1105,12 +1206,8 @@ const AdminProductManager = ({ products, editingId, startEditing, cancelEditing,
         }
     }, [deleteConfirmation.productId, handleDeleteProduct]);
 
-    // KRİTİK PERFORMANS DÜZELTMESİ:
-    // Sıralama işlemi artık useMemo içinde yapılıyor. Böylece "newProduct" state'i değiştiğinde (klavye ile yazarken),
-    // tüm liste tekrar sıralanıp render edilmiyor. Sadece "products" listesi değiştiğinde render ediliyor.
     const groupedProducts = useMemo(() => {
         const grouped = {};
-        // Önce tüm ürünleri sırala (sort işlemi burada yapılır)
         const sortedProducts = [...products].sort(naturalSort);
         
         sortedProducts.forEach(p => {
@@ -1163,7 +1260,6 @@ const AdminProductManager = ({ products, editingId, startEditing, cancelEditing,
                         <div className="space-y-2 mt-2">
                             {Object.entries(subcategories).sort(([subA], [subB]) => subA.localeCompare(subB, undefined, { numeric: true, sensitivity: 'base' })).map(([subcategory, items]) => (
                                 <CollapsibleSection key={subcategory} title={subcategory} count={items.length} level={1}>
-                                    {/* items artık sıralı geldiği için burada tekrar sort yapmaya gerek yok ve referans bozulmuyor */}
                                     <PaginatedProductGrid items={items} editingId={editingId} startEditing={startEditing} onDeleteClick={openDeleteModal} />
                                 </CollapsibleSection>
                             ))}
@@ -1226,7 +1322,7 @@ const AdminOrderManager = ({ orders, onCreateNewOrder, onViewOrder, handleUpdate
                 </div>
             </div>
             <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2 pt-2 custom-scrollbar">
-                    <button onClick={() => setActiveStatusFilter('all')} className={`px-4 py-2 rounded-full text-xs font-bold border whitespace-nowrap min-w-fit ${activeStatusFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}>Tümü ({statusCounts.all})</button>
+                    {/* "Tümü" butonu kaldırıldı */}
                     {Object.entries(ORDER_STAGES).map(([key, info]) => (
                         <button key={key} onClick={() => setActiveStatusFilter(key)} className={`px-4 py-2 rounded-full text-xs font-bold border whitespace-nowrap min-w-fit flex items-center gap-2 ${activeStatusFilter === key ? 'bg-white ring-2 ring-blue-500' : 'bg-white text-slate-600'}`}>
                             <info.icon size={14}/> {info.label} ({statusCounts[key]})
@@ -1363,14 +1459,14 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
 
     return (
         <div className="flex flex-col md:flex-row h-screen bg-slate-100">
-             {/* Admin Sidebar - Mobile Responsive */}
+             
             <div className="md:w-64 bg-slate-900 text-white flex flex-col flex-shrink-0">
                 <div className="p-6 border-b border-slate-800 flex flex-col items-center">
                     <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-3 text-2xl font-bold text-yellow-500 overflow-hidden border-2 border-slate-700">{user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : user.email[0].toUpperCase()}</div>
                     <div className="text-sm font-bold">{user.email}</div>
                     <div className="text-xs text-slate-500">Yönetici</div>
                 </div>
-                {/* Mobile Admin Nav - Collapsible could be better but sticking to scroll for now */}
+                
                 <nav className="flex-1 p-4 space-y-2 overflow-x-auto md:overflow-visible flex md:flex-col">
                     {['dashboard:Özet', 'products:Ürün Yönetimi', 'orders:Siparişler', 'social:Stüdyo', 'messages:Mesajlar', 'settings:Ayarlar'].map(item => {
                         const [key, label] = item.split(':');
@@ -1381,7 +1477,7 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
                     <button onClick={onClose} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs font-bold">Mağazaya Dön</button>
                     <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-200 rounded text-xs font-bold"><LogOut size={14}/> Çıkış Yap</button>
                 </div>
-                {/* Mobile Admin Footer Actions */}
+                
                  <div className="p-4 border-t border-slate-800 flex gap-2 md:hidden">
                     <button onClick={onClose} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs font-bold">Mağaza</button>
                     <button onClick={handleLogout} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-200 rounded text-xs font-bold"><LogOut size={14}/></button>
@@ -1539,7 +1635,6 @@ const UserProfileModal = ({ user, isOpen, onClose }) => {
 // ==========================================
 // ORDER PREVIEW MODAL
 // ==========================================
-// ... (OrderPreviewModal remains same)
 const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, onCreateOrder, products, onUpdateOrder, draftData, setDraftData, logoUrl }) => {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -1833,6 +1928,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
 const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, setIsOrderPreviewOpen, viewingOrder, setViewingOrder, handleCheckout, removeFromCart, orderKarat, user, setIsAdminOpen, setShowLogin, setSelectedProduct, onLogin, currentUserData, logoUrl }) => {
   const [activeCategory, setActiveCategory] = useState("Anasayfa");
   const [activeSubCategory, setActiveSubCategory] = useState("Hepsi"); 
+  const [expandedCategory, setExpandedCategory] = useState(null); // YENİ: Açılır menü durumu
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [loginStep, setLoginStep] = useState('welcome');
@@ -1891,7 +1987,18 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 
   return (
     <div className="flex h-screen overflow-hidden relative">
-        {showEmptyCartModal && <div className="fixed inset-0 z-[300] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowEmptyCartModal(false)}><div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full text-center"><div className="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4"><ShoppingBag size={32} className="text-yellow-500"/></div><h3 className="text-xl font-bold text-slate-800 mb-2">Sepetiniz Boş</h3><button onClick={() => setShowEmptyCartModal(false)} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm w-full">Tamam</button></div></div>}
+        {showEmptyCartModal && (
+            <div className="fixed inset-0 z-[300] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowEmptyCartModal(false)}>
+                <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full text-center">
+                    <div className="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <AlertTriangle size={32} className="text-yellow-500"/>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Uyarı</h3>
+                    <p className="text-slate-600 mb-6 font-medium">Sipariş oluşturmak için en az 1 model yükleyiniz.</p>
+                    <button onClick={() => setShowEmptyCartModal(false)} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm w-full">Tamam</button>
+                </div>
+            </div>
+        )}
         {isAccountModalOpen && <UserProfileModal user={user} isOpen={isAccountModalOpen} onClose={() => setIsAccountModalOpen(false)} />}
         
         {/* Mobile Sidebar Overlay */}
@@ -1913,10 +2020,36 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
             </div>
             <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 scrollbar-hide">
                 <button onClick={() => handleCategoryClick("Anasayfa")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold transition-all ${activeCategory === "Anasayfa" ? 'bg-yellow-500 text-slate-900' : 'text-slate-400 hover:bg-slate-800'}`}><Search size={18}/> Hızlı Arama</button>
+                
+                {/* DÜZENLENDİ: Ana kategoriler sadece accordion görevi görür */}
                 {CATEGORIES.filter(c => c !== "Anasayfa").map(cat => (
                     <div key={cat} className="group relative">
-                        <button onClick={() => { if (activeCategory === cat) { setActiveCategory("Anasayfa"); setActiveSubCategory("Hepsi"); } else { handleCategoryClick(cat); } }} className={`w-full flex justify-between items-center px-4 py-3 rounded-lg text-sm font-bold transition-all ${activeCategory === cat ? 'bg-slate-800 text-yellow-500' : 'text-slate-400 hover:bg-slate-800'}`}><span>{cat}</span>{activeCategory === cat ? <ChevronDown size={14} className="text-yellow-500"/> : <ChevronRight size={14} className="opacity-50"/>}</button>
-                        {activeCategory === cat && SUBCATEGORIES[cat] && (<div className="bg-slate-950/50 py-2 space-y-1">{SUBCATEGORIES[cat].map(sub => (<button key={sub} onClick={(e) => { e.stopPropagation(); handleCategoryClick(cat, sub); }} className={`w-full text-left pl-10 pr-4 py-2 text-xs font-bold transition-colors flex items-center gap-2 ${activeSubCategory === sub ? 'text-white bg-slate-800/50 border-l-2 border-yellow-500' : 'text-slate-500 hover:text-slate-300'}`}><span className={`w-1.5 h-1.5 rounded-full ${activeSubCategory === sub ? 'bg-yellow-500' : 'bg-slate-600'}`}></span>{sub}</button>))}</div>)}
+                        <button 
+                            onClick={() => setExpandedCategory(expandedCategory === cat ? null : cat)} 
+                            className={`w-full flex justify-between items-center px-4 py-3 rounded-lg text-sm font-bold transition-all ${activeCategory === cat || expandedCategory === cat ? 'bg-slate-800 text-yellow-500' : 'text-slate-400 hover:bg-slate-800'}`}
+                        >
+                            <span>{cat}</span>
+                            {expandedCategory === cat ? <ChevronDown size={14} className="text-yellow-500"/> : <ChevronRight size={14} className="opacity-50"/>}
+                        </button>
+                        
+                        {/* Alt kategoriler açıldığında görünür */}
+                        {expandedCategory === cat && SUBCATEGORIES[cat] && (
+                            <div className="bg-slate-950/50 py-2 space-y-1">
+                                {SUBCATEGORIES[cat].map(sub => (
+                                    <button 
+                                        key={sub} 
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            handleCategoryClick(cat, sub); 
+                                        }} 
+                                        className={`w-full text-left pl-10 pr-4 py-2 text-xs font-bold transition-colors flex items-center gap-2 ${activeSubCategory === sub && activeCategory === cat ? 'text-white bg-slate-800/50 border-l-2 border-yellow-500' : 'text-slate-500 hover:text-slate-300'}`}
+                                    >
+                                        <span className={`w-1.5 h-1.5 rounded-full ${activeSubCategory === sub && activeCategory === cat ? 'bg-yellow-500' : 'bg-slate-600'}`}></span>
+                                        {sub}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
@@ -1953,6 +2086,8 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                     )}
                 </div>
                 <div className="flex items-center gap-2 md:gap-4">
+                    {/* Notification Button REMOVED HERE */}
+                    
                     <button onClick={() => { if (cart.length > 0) { setIsOrderPreviewOpen(true); } else { setShowEmptyCartModal(true); } }} className="relative p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors group"><ShoppingBag size={20} className="text-slate-600 group-hover:text-slate-900"/>{cart.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full ring-2 ring-white">{cart.length}</span>}</button>
                     <div className="relative">
                         <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-3 pl-2 md:pl-4 border-l outline-none"><div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs overflow-hidden border border-slate-200">{user?.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : user?.email?.[0]?.toUpperCase()}</div></button>
@@ -2000,7 +2135,6 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 };
 
 const App = () => {
-    // ... (Keeping Main App logic same)
     const [user, setUser] = useState(null);
     const [isAdminOpen, setIsAdminOpen] = useState(false);
     const [products, setProducts] = useState([]);
@@ -2015,6 +2149,21 @@ const App = () => {
     const [logoUrl, setLogoUrl] = useState(DEFAULT_LOGO_URL);
     const [currentUserData, setCurrentUserData] = useState({});
     const [draftData, setDraftData] = useState({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] });
+
+    // YENİ: Başlık ve Favicon Güncellemesi
+    useEffect(() => {
+        // Başlığı güncelle
+        document.title = "Sahra Kuyumculuk";
+        
+        // Favicon güncelle
+        let link = document.querySelector("link[rel~='icon']");
+        if (!link) {
+            link = document.createElement('link');
+            link.rel = 'icon';
+            document.getElementsByTagName('head')[0].appendChild(link);
+        }
+        link.href = logoUrl || DEFAULT_LOGO_URL;
+    }, [logoUrl]);
 
     useEffect(() => {
         const initAuth = async () => { 
@@ -2079,13 +2228,10 @@ const App = () => {
     useEffect(() => {
         if (!user) return;
         
-        // Ürünleri dinle
         const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); });
         
-        // Siparişleri dinle
         const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snap) => { setOrders(snap.docs.map(d => ({id:d.id, ...d.data()}))); });
         
-        // GÜNCELLEME: Kullanıcı verilerini (rolünü) dinle
         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
         const unsubUser = onSnapshot(userRef, (docSnap) => {
             if (docSnap.exists()) {
@@ -2103,12 +2249,10 @@ const App = () => {
     const handleAddToCart = useCallback((product) => { setCart(prev => [...prev, { ...product, cartId: Date.now() }]); setNotification({ type: 'success', message: `${product.code} sepete eklendi` }); if(cart.length === 0) setOrderKarat(product.selectedKarat); }, [cart.length]);
     const removeFromCart = useCallback((cartId) => { setCart(prev => { const newCart = prev.filter(item => item.cartId !== cartId); if(newCart.length === 0) setOrderKarat(null); return newCart; }); }, []);
     
-    // GÜNCELLEME: Sipariş kaydedilirken görsel URL'sini ARTIK SİLMİYORUZ.
     const handleCheckout = useCallback(async (name, phone, note, deliveryDate, karat, orderNo, orderStamp, items = null, targetStatus = 'new', finalOrderDate) => { 
         if(cart.length === 0 && (!items || items.length === 0)) return; 
         if (!user) { alert("Oturum açılıyor..."); return; } 
         try { 
-            // DÜZELTME BURADA: Firestore 1MB limitini aşmamak için imageUrl ve imageFile alanlarını hariç tutuyoruz.
             const itemsToSave = (items || cart).map(item => { 
                 const { _tempId, imageUrl, imageFile, ...rest } = item; 
                 return rest; 
