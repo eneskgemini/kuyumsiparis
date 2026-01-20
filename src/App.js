@@ -33,7 +33,7 @@ const SUBCATEGORIES = {
   "Yüzük": ["AS-B", "SMG", "SA-Y", "SB-M", "SB-Y", "SH-R", "SH-Y", "SK-Y", "SM-I", "SM-Y", "SR-G", "SS-H", "SS-Y", "ST-I", "ST-O"],
   "Kolye": ["SA-K", "SH-H", "SK-A", "SK-B", "SK-E"],
   "Küpe": ["SH-K", "SK-M", "SM-K", "SR-E"],
-  "Bileklik": ["SP-B"],
+  "Bileklik": ["AL-X", "SP-B", "SK-C"],
   "Set": ["SB-S", "SH-E", "SS-A", "SV-K"],
   "Haç": ["M-HC", "S-HC"]
 };
@@ -2150,19 +2150,74 @@ const App = () => {
     const [currentUserData, setCurrentUserData] = useState({});
     const [draftData, setDraftData] = useState({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] });
 
-    // YENİ: Başlık ve Favicon Güncellemesi
+    // YENİ: Başlık, Favicon ve Manifest Güncellemesi (PWA & Masaüstü Kısayolu için)
     useEffect(() => {
-        // Başlığı güncelle
-        document.title = "Sahra Kuyumculuk";
-        
-        // Favicon güncelle
-        let link = document.querySelector("link[rel~='icon']");
-        if (!link) {
-            link = document.createElement('link');
-            link.rel = 'icon';
-            document.getElementsByTagName('head')[0].appendChild(link);
-        }
-        link.href = logoUrl || DEFAULT_LOGO_URL;
+        const updateAppMetadata = () => {
+            const currentLogo = logoUrl || DEFAULT_LOGO_URL;
+            const appTitle = "Sahra Kuyumculuk";
+
+            // 1. Sayfa Başlığı
+            document.title = appTitle;
+
+            // 2. Favicon (Tarayıcı Sekmesi)
+            let link = document.querySelector("link[rel~='icon']");
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'icon';
+                document.head.appendChild(link);
+            }
+            link.href = currentLogo;
+
+            // 3. Apple Touch Icon (iOS Ana Ekran)
+            let appleLink = document.querySelector("link[rel='apple-touch-icon']");
+            if (!appleLink) {
+                appleLink = document.createElement('link');
+                appleLink.rel = 'apple-touch-icon';
+                document.head.appendChild(appleLink);
+            }
+            appleLink.href = currentLogo;
+
+            // 4. Dinamik Manifest (Android/Chrome Masaüstü Kısayolu)
+            // Varolan manifesti temizle (varsa)
+            const existingManifest = document.querySelector("link[rel='manifest']");
+            if (existingManifest) {
+                document.head.removeChild(existingManifest);
+            }
+
+            const manifestData = {
+                name: appTitle,
+                short_name: "Sahra",
+                start_url: ".", 
+                display: "standalone",
+                background_color: "#ffffff",
+                theme_color: "#eab308",
+                icons: [
+                    {
+                        src: currentLogo,
+                        sizes: "192x192",
+                        type: "image/png",
+                        purpose: "any maskable"
+                    },
+                    {
+                        src: currentLogo,
+                        sizes: "512x512",
+                        type: "image/png",
+                        purpose: "any maskable"
+                    }
+                ]
+            };
+
+            const stringManifest = JSON.stringify(manifestData);
+            const blob = new Blob([stringManifest], {type: 'application/json'});
+            const manifestURL = URL.createObjectURL(blob);
+
+            const newManifest = document.createElement('link');
+            newManifest.rel = 'manifest';
+            newManifest.href = manifestURL;
+            document.head.appendChild(newManifest);
+        };
+
+        updateAppMetadata();
     }, [logoUrl]);
 
     useEffect(() => {
