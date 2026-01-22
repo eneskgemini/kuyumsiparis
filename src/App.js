@@ -98,7 +98,10 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                const MAX_SIZE = 1200; 
+                
+                // ESKİSİ 1200 İDİ, BUNU 2000 YAPIYORUZ (DAHA NET GÖRÜNTÜ İÇİN)
+                const MAX_SIZE = 2000; 
+                
                 if (width > MAX_SIZE || height > MAX_SIZE) {
                     const ratio = Math.min(MAX_SIZE / width, MAX_SIZE / height);
                     width *= ratio;
@@ -109,9 +112,13 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 const ctx = canvas.getContext('2d');
                 ctx.fillStyle = "#FFFFFF";
                 ctx.fillRect(0, 0, width, height);
+                // Görüntü yumuşatma kalitesini artır
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                let quality = 0.8; 
+                // KALİTEYİ 0.8 YERİNE 0.95 YAPIYORUZ
+                let quality = 0.95; 
                 let dataUrl = canvas.toDataURL('image/jpeg', quality);
                 
                 resolve({ base64: dataUrl, type: 'image' });
@@ -1083,19 +1090,22 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
     const [currentIndex, setCurrentIndex] = useState(0);
     const [loading, setLoading] = useState(true);
 
+    // Dokunmatik (Swipe) State'leri
+    const [touchStart, setTouchStart] = useState(null);
+    const [touchEnd, setTouchEnd] = useState(null);
+    const minSwipeDistance = 50; 
+
     // Verileri Çekme Effect'i
     useEffect(() => {
         if (!isOpen) return;
         setLoading(true);
-        setImages([]); // Reset images
+        setImages([]); 
         
-        // Sıralama: Yüklenme sırasına göre (Eskiden yeniye)
         let q = query(collection(db, 'artifacts', appId, 'public', 'data', 'catalogue_images'), orderBy('createdAt', 'asc'));
 
         const unsub = onSnapshot(q, (snap) => {
             let fetched = snap.docs.map(d => d.data());
             
-            // Client-side filtreleme
             if (initialCategory && initialCategory !== "Anasayfa") {
                 fetched = fetched.filter(img => img.category === initialCategory);
                 if (initialSubcategory && initialSubcategory !== "Hepsi") {
@@ -1111,36 +1121,43 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
         return () => unsub();
     }, [isOpen, appId, initialCategory, initialSubcategory]);
 
-    // YENİ: Klavye Kontrolleri (Sağ, Sol, ESC)
+    // Klavye Kontrolleri
     useEffect(() => {
         if (!isOpen) return;
-
         const handleKeyDown = (e) => {
             if (images.length === 0) return;
-
-            if (e.key === 'ArrowLeft') {
-                // Sol ok: Önceki resim
-                setCurrentIndex(prev => (prev - 1 + images.length) % images.length);
-            } else if (e.key === 'ArrowRight') {
-                // Sağ ok: Sonraki resim
-                setCurrentIndex(prev => (prev + 1) % images.length);
-            } else if (e.key === 'Escape') {
-                // ESC: Kapat
-                onClose();
-            }
+            if (e.key === 'ArrowLeft') setCurrentIndex(prev => (prev - 1 + images.length) % images.length);
+            else if (e.key === 'ArrowRight') setCurrentIndex(prev => (prev + 1) % images.length);
+            else if (e.key === 'Escape') onClose();
         };
-
         window.addEventListener('keydown', handleKeyDown);
-        
-        // Temizleme fonksiyonu
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, images.length, onClose]); // images.length değiştiğinde listener güncellenir
+    }, [isOpen, images.length, onClose]);
+
+    // DOKUNMATİK (SWIPE) FONKSİYONLARI
+    const onTouchStart = (e) => {
+        setTouchEnd(null);
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const onTouchMove = (e) => {
+        setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > minSwipeDistance;
+        const isRightSwipe = distance < -minSwipeDistance;
+
+        if (isLeftSwipe) setCurrentIndex(prev => (prev + 1) % images.length);
+        if (isRightSwipe) setCurrentIndex(prev => (prev - 1 + images.length) % images.length);
+    };
 
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-[500] bg-black flex flex-col items-center justify-center">
-            {/* Kapatma Butonu */}
             <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white z-[510] transition-colors p-2 bg-black/20 rounded-full hover:bg-white/20">
                 <X size={32}/>
             </button>
@@ -1151,70 +1168,42 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
                 </div>
             ) : images.length > 0 ? (
                 <>
-                    {/* Ana Resim Alanı */}
-                    <div className="flex-1 w-full h-full flex items-center justify-center relative p-4 pb-24 group">
+                    <div 
+                        className="flex-1 w-full h-full flex items-center justify-center relative p-0 md:p-4 pb-24 group touch-pan-y"
+                        onTouchStart={onTouchStart}
+                        onTouchMove={onTouchMove}
+                        onTouchEnd={onTouchEnd}
+                    >
                         <img 
                             src={images[currentIndex]} 
-                            className="max-w-full max-h-full object-contain animate-in fade-in duration-300 shadow-2xl select-none" 
+                            className="w-full h-full object-contain animate-in fade-in duration-300 shadow-2xl select-none" 
                             key={currentIndex} 
                             alt="Katalog"
+                            style={{ maxHeight: 'calc(100vh - 120px)' }} 
                         />
-                        
-                        {/* Sol Ok Butonu */}
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev - 1 + images.length) % images.length); }} 
-                            className="absolute left-4 text-white/30 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
-                            title="Önceki (Sol Ok)"
-                        >
-                            <ChevronLeft size={48}/>
-                        </button>
-                        
-                        {/* Sağ Ok Butonu */}
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev + 1) % images.length); }} 
-                            className="absolute right-4 text-white/30 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
-                            title="Sonraki (Sağ Ok)"
-                        >
-                            <ChevronRight size={48}/>
-                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev - 1 + images.length) % images.length); }} className="hidden md:block absolute left-4 text-white/30 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full group-hover:opacity-100"><ChevronLeft size={48}/></button>
+                        <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev + 1) % images.length); }} className="hidden md:block absolute right-4 text-white/30 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full group-hover:opacity-100"><ChevronRight size={48}/></button>
                     </div>
                     
-                    {/* Alt Küçük Resim Şeridi (Thumbnail Strip) */}
-                    <div className="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-black via-black/80 to-transparent flex items-center gap-2 overflow-x-auto px-4 py-2 scrollbar-hide z-50">
+                    <div className="absolute bottom-0 left-0 w-full h-20 md:h-24 bg-gradient-to-t from-black via-black/90 to-transparent flex items-center gap-2 overflow-x-auto px-4 py-2 scrollbar-hide z-50">
                         {images.map((img, idx) => (
-                            <button 
-                                key={idx} 
-                                onClick={() => setCurrentIndex(idx)} 
-                                className={`shrink-0 w-14 h-14 md:w-16 md:h-16 rounded-lg overflow-hidden border-2 transition-all relative group/thumb ${idx === currentIndex ? 'border-yellow-500 scale-105 opacity-100' : 'border-transparent opacity-40 hover:opacity-100'}`}
-                            >
+                            <button key={idx} onClick={() => setCurrentIndex(idx)} className={`shrink-0 w-12 h-12 md:w-16 md:h-16 rounded-lg overflow-hidden border-2 transition-all relative ${idx === currentIndex ? 'border-yellow-500 scale-105 opacity-100' : 'border-transparent opacity-40 hover:opacity-100'}`}>
                                 <img src={img} className="w-full h-full object-cover" loading="lazy" />
                             </button>
                         ))}
                     </div>
                     
-                    {/* Bilgi Çubuğu */}
-                    <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full text-white/70 text-xs font-bold border border-white/10 flex items-center gap-2">
+                    <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full text-white/70 text-xs font-bold border border-white/10 flex items-center gap-2 pointer-events-none">
                         <span>{initialCategory}</span>
-                        {initialSubcategory !== "Hepsi" && (
-                            <>
-                                <ChevronRight size={12} className="opacity-50"/>
-                                <span>{initialSubcategory}</span>
-                            </>
-                        )}
-                        <span className="ml-2 pl-2 border-l border-white/20 text-yellow-500">
-                            {currentIndex + 1} / {images.length}
-                        </span>
+                        {initialSubcategory !== "Hepsi" && <><ChevronRight size={12} className="opacity-50"/><span>{initialSubcategory}</span></>}
+                        <span className="ml-2 pl-2 border-l border-white/20 text-yellow-500">{currentIndex + 1} / {images.length}</span>
                     </div>
                 </>
             ) : (
                 <div className="text-white text-xl flex flex-col items-center gap-4 animate-in zoom-in duration-300">
-                    <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center">
-                        <AlertTriangle size={40} className="text-yellow-500"/>
-                    </div>
-                    <p className="font-light">Bu kategori için henüz katalog fotoğrafı yüklenmemiş.</p>
-                    <button onClick={onClose} className="bg-white text-black hover:bg-slate-200 px-8 py-3 rounded-full text-sm font-bold transition-colors shadow-lg">
-                        Kapat
-                    </button>
+                    <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center"><AlertTriangle size={40} className="text-yellow-500"/></div>
+                    <p className="font-light">Bu kategori için fotoğraf yok.</p>
+                    <button onClick={onClose} className="bg-white text-black px-8 py-3 rounded-full text-sm font-bold shadow-lg">Kapat</button>
                 </div>
             )}
         </div>
