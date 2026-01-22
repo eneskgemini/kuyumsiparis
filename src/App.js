@@ -1105,22 +1105,27 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
     const [currentIndex, setCurrentIndex] = useState(0);
     const [loading, setLoading] = useState(true);
 
-    // Zoom ve Pan (Kaydırma) State'leri
+    // --- ZOOM & PAN (GEZİNME) STATE'LERİ ---
     const [scale, setScale] = useState(1);
-    const [position, setPosition] = useState({ x: 0, y: 0 });
+    const [translate, setTranslate] = useState({ x: 0, y: 0 });
+    
+    // --- DOKUNMATİK ETKİLEŞİM STATE'LERİ ---
     const [isDragging, setIsDragging] = useState(false);
-    const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+    const [startTouch, setStartTouch] = useState({ x: 0, y: 0 }); // Tek parmak başlangıcı
+    const [startPinchDist, setStartPinchDist] = useState(0); // İki parmak arası mesafe
+    const [startScale, setStartScale] = useState(1); // Pinch başladığındaki zoom oranı
+    const [swipeOffset, setSwipeOffset] = useState(0); // Resim değiştirme sırasındaki kayma miktarı
 
-    // Swipe (Resim Değiştirme) State'leri
-    const [touchStart, setTouchStart] = useState(null);
-    const [touchEnd, setTouchEnd] = useState(null);
-    const minSwipeDistance = 50;
-
-    // Resim değiştiğinde zoom'u sıfırla
+    // Resim değişince her şeyi sıfırla
     useEffect(() => {
-        setScale(1);
-        setPosition({ x: 0, y: 0 });
+        resetZoom();
     }, [currentIndex]);
+
+    const resetZoom = () => {
+        setScale(1);
+        setTranslate({ x: 0, y: 0 });
+        setSwipeOffset(0);
+    };
 
     // Verileri Çek
     useEffect(() => {
@@ -1162,83 +1167,103 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
     }, [isOpen, images.length, onClose]);
 
     const changeImage = (dir) => {
-        // Eğer zoom yapılmışsa resim değiştirmeyi engelle (önce küçültsün)
-        if (scale > 1) return; 
-        
+        resetZoom(); // Değişirken zoomu kapat
         if (dir === 1) setCurrentIndex(prev => (prev + 1) % images.length);
         else setCurrentIndex(prev => (prev - 1 + images.length) % images.length);
     };
 
-    // --- DOKUNMATİK KONTROLLERİ (ZOOM & SWIPE) ---
-    
-    // Çift Tıklama (Double Tap) -> Zoomla / Küçült
-    const handleDoubleTap = (e) => {
-        if (scale > 1) {
-            setScale(1);
-            setPosition({ x: 0, y: 0 });
-        } else {
-            // Tıklanan noktaya zoom yap (Basitçe 2.5x yapıyoruz)
-            setScale(2.5);
-            setPosition({ x: 0, y: 0 }); 
+    // --- MATEMATİK YARDIMCILARI ---
+    const getDistance = (touches) => {
+        return Math.hypot(
+            touches[0].clientX - touches[1].clientX,
+            touches[0].clientY - touches[1].clientY
+        );
+    };
+
+    // --- DOKUNMATİK HANDLERLAR (CORE LOGIC) ---
+
+    const handleTouchStart = (e) => {
+        if (e.touches.length === 1) {
+            // TEK PARMAK: Ya Swipe (değiştirme) ya da Pan (gezme)
+            setIsDragging(true);
+            setStartTouch({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+        } else if (e.touches.length === 2) {
+            // İKİ PARMAK: Pinch Zoom Başlangıcı
+            const dist = getDistance(e.touches);
+            setStartPinchDist(dist);
+            setStartScale(scale);
         }
     };
 
-    const onTouchStart = (e) => {
-        if (e.touches.length === 1) {
-            // Tek parmak: Ya swipe (değiştirme) ya da pan (zoomlu iken gezme)
+    const handleTouchMove = (e) => {
+        // Tarayıcının sayfa kaydırmasını engelle (iPad için kritik)
+        e.preventDefault(); 
+
+        if (e.touches.length === 1 && isDragging) {
+            // TEK PARMAK HAREKETİ
+            const dx = e.touches[0].clientX - startTouch.x;
+            const dy = e.touches[0].clientY - startTouch.y;
+
             if (scale > 1) {
-                setIsDragging(true);
-                setStartPos({ x: e.touches[0].clientX - position.x, y: e.touches[0].clientY - position.y });
+                // Zoomlu iken: Fotoğrafın içinde gezin (Pan)
+                setTranslate(prev => ({
+                    x: prev.x + dx * 0.5, // Hassasiyeti düşürmek için 0.5 ile çarptık
+                    y: prev.y + dy * 0.5
+                }));
+                setStartTouch({ x: e.touches[0].clientX, y: e.touches[0].clientY }); // Pozisyonu güncelle
             } else {
-                setTouchEnd(null);
-                setTouchStart(e.touches[0].clientX);
+                // Zoom YOKKEN: Resmi değiştirme efekti (Swipe)
+                // Sadece yatay harekete izin ver
+                setSwipeOffset(dx);
+            }
+        } else if (e.touches.length === 2) {
+            // İKİ PARMAK HAREKETİ (PINCH ZOOM)
+            const dist = getDistance(e.touches);
+            if (startPinchDist > 0) {
+                const newScale = startScale * (dist / startPinchDist);
+                // Min 1x, Max 5x olacak şekilde sınırla
+                setScale(Math.min(Math.max(1, newScale), 5));
             }
         }
     };
 
-    const onTouchMove = (e) => {
-        if (e.touches.length === 1) {
-            if (scale > 1 && isDragging) {
-                // Zoomlu iken resmi kaydır
-                e.preventDefault();
-                setPosition({
-                    x: e.touches[0].clientX - startPos.x,
-                    y: e.touches[0].clientY - startPos.y
-                });
-            } else if (scale === 1) {
-                // Zoom yokken swipe için pozisyon al
-                setTouchEnd(e.touches[0].clientX);
-            }
-        }
-    };
-
-    const onTouchEnd = () => {
+    const handleTouchEnd = () => {
         setIsDragging(false);
 
-        // Eğer zoom yoksa ve swipe yapıldıysa resmi değiştir
-        if (scale === 1 && touchStart && touchEnd) {
-            const distance = touchStart - touchEnd;
-            const isLeftSwipe = distance > minSwipeDistance;
-            const isRightSwipe = distance < -minSwipeDistance;
-
-            if (isLeftSwipe) changeImage(1); // Sonraki
-            if (isRightSwipe) changeImage(-1); // Önceki
+        if (scale > 1) {
+            // Zoomlu ise bırakınca bir şey yapma (belki sınırlar eklenebilir)
+            if (scale < 1) setScale(1); // 1'in altına düşerse toparla
+        } else {
+            // Zoom yoksa ve kaydırma yapıldıysa karar ver
+            const threshold = 100; // Ne kadar çekerse değişsin?
+            if (swipeOffset > threshold) {
+                changeImage(-1); // Önceki
+            } else if (swipeOffset < -threshold) {
+                changeImage(1); // Sonraki
+            } else {
+                // Yeterince çekmediyse yerine geri gelsin
+                setSwipeOffset(0);
+            }
         }
+        setStartPinchDist(0);
     };
 
-    // Tekerlek ile Zoom (Masaüstü için opsiyonel)
-    const handleWheel = (e) => {
-        if(e.ctrlKey) {
-            e.preventDefault();
-            const newScale = scale - e.deltaY * 0.01;
-            setScale(Math.min(Math.max(1, newScale), 4));
+    const handleDoubleTap = () => {
+        if (scale > 1) {
+            resetZoom();
+        } else {
+            setScale(2.5); // Çift tıkla 2.5x yap
         }
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[500] bg-black flex flex-col items-center justify-center overflow-hidden" onWheel={handleWheel}>
+        <div 
+            className="fixed inset-0 z-[500] bg-black flex flex-col items-center justify-center overflow-hidden touch-none"
+            // touch-none: iPad'de tarayıcı hareketlerini engeller
+            style={{ touchAction: 'none' }} 
+        >
             {/* Kapatma Butonu */}
             <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white z-[510] transition-colors p-2 bg-black/20 rounded-full hover:bg-white/20">
                 <X size={32}/>
@@ -1252,25 +1277,32 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
                 <>
                     {/* Ana Resim Alanı */}
                     <div 
-                        className="flex-1 w-full h-full flex items-center justify-center relative p-0 md:p-4 pb-24 group overflow-hidden touch-none"
-                        onTouchStart={onTouchStart}
-                        onTouchMove={onTouchMove}
-                        onTouchEnd={onTouchEnd}
+                        className="flex-1 w-full h-full flex items-center justify-center relative p-0 overflow-hidden"
+                        onTouchStart={handleTouchStart}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
                         onDoubleClick={handleDoubleTap}
                     >
                         <div 
                             style={{ 
-                                transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
-                                transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+                                // CSS Transform ile hareketleri uygula
+                                // Eğer zoom yoksa swipeOffset'i kullan, zoom varsa translate ve scale'i kullan
+                                transform: scale === 1 
+                                    ? `translateX(${swipeOffset}px)` 
+                                    : `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
+                                transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)', // Bırakınca yumuşak geçiş
+                                width: '100%',
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
                             }}
-                            className="w-full h-full flex items-center justify-center"
                         >
                             <img 
                                 src={images[currentIndex]} 
-                                className="max-w-full max-h-full object-contain select-none shadow-2xl" 
+                                className="max-w-full max-h-full object-contain select-none shadow-2xl pointer-events-none" 
                                 key={currentIndex} 
                                 alt="Katalog"
-                                draggable={false}
                             />
                         </div>
                         
@@ -1286,14 +1318,14 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
                     {/* Alt Küçük Resim Şeridi */}
                     <div className="absolute bottom-0 left-0 w-full h-20 md:h-24 bg-gradient-to-t from-black via-black/90 to-transparent flex items-center gap-2 overflow-x-auto px-4 py-2 scrollbar-hide z-50">
                         {images.map((img, idx) => (
-                            <button key={idx} onClick={() => setCurrentIndex(idx)} className={`shrink-0 w-12 h-12 md:w-16 md:h-16 rounded-lg overflow-hidden border-2 transition-all relative ${idx === currentIndex ? 'border-yellow-500 scale-105 opacity-100' : 'border-transparent opacity-40 hover:opacity-100'}`}>
+                            <button key={idx} onClick={() => { setCurrentIndex(idx); resetZoom(); }} className={`shrink-0 w-12 h-12 md:w-16 md:h-16 rounded-lg overflow-hidden border-2 transition-all relative ${idx === currentIndex ? 'border-yellow-500 scale-105 opacity-100' : 'border-transparent opacity-40 hover:opacity-100'}`}>
                                 <img src={img} className="w-full h-full object-cover" loading="lazy" />
                             </button>
                         ))}
                     </div>
                     
                     {/* Bilgi Çubuğu */}
-                    <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full text-white/70 text-xs font-bold border border-white/10 flex items-center gap-2 pointer-events-none">
+                    <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full text-white/70 text-xs font-bold border border-white/10 flex items-center gap-2 pointer-events-none z-[510]">
                         <span>{initialCategory}</span>
                         {initialSubcategory !== "Hepsi" && <><ChevronRight size={12} className="opacity-50"/><span>{initialSubcategory}</span></>}
                         <span className="ml-2 pl-2 border-l border-white/20 text-yellow-500">{currentIndex + 1} / {images.length}</span>
