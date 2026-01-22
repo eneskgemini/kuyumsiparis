@@ -1986,20 +1986,36 @@ const App = () => {
     const [currentUserData, setCurrentUserData] = useState({});
     const [draftData, setDraftData] = useState({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] });
     
-    // Katalog Modu State'leri (YENİ EKLENDİ)
+    // Katalog Modu State'leri
     const [isCatalogueOpen, setIsCatalogueOpen] = useState(false);
     const [catalogueParams, setCatalogueParams] = useState({ category: 'Anasayfa', subcategory: 'Hepsi' });
 
-    // Başlık ve Favicon Güncellemesi
+    // ==========================================
+    // LOGO GÜNCELLEME (IPHONE & FAVICON & BAŞLIK)
+    // ==========================================
     useEffect(() => {
-        document.title = "Sahra Kuyumculuk";
-        let link = document.querySelector("link[rel~='icon']");
-        if (!link) {
-            link = document.createElement('link');
-            link.rel = 'icon';
-            document.getElementsByTagName('head')[0].appendChild(link);
+        document.title = "Sahra Kuyumculuk"; 
+
+        const targetLogo = logoUrl || DEFAULT_LOGO_URL;
+
+        // 1. Apple Touch Icon
+        let appleIcon = document.querySelector("link[rel~='apple-touch-icon']");
+        if (!appleIcon) {
+            appleIcon = document.createElement('link');
+            appleIcon.rel = 'apple-touch-icon';
+            document.getElementsByTagName('head')[0].appendChild(appleIcon);
         }
-        link.href = logoUrl || DEFAULT_LOGO_URL;
+        appleIcon.href = targetLogo;
+
+        // 2. Standart Favicon
+        let favicon = document.querySelector("link[rel~='icon']");
+        if (!favicon) {
+            favicon = document.createElement('link');
+            favicon.rel = 'icon';
+            document.getElementsByTagName('head')[0].appendChild(favicon);
+        }
+        favicon.href = targetLogo;
+
     }, [logoUrl]);
 
     useEffect(() => {
@@ -2064,7 +2080,6 @@ const App = () => {
     const handleUpdateStatus = useCallback(async (orderId, status) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { status }); setNotification({type:'success', message:'Durum güncellendi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, [appId]);
     const handleDeleteOrder = useCallback(async (orderId) => { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId)); setNotification({type:'success', message:'Sipariş silindi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, [appId]);
 
-    // BU FONKSİYON EKSİKTİ, EKLENDİ:
     const handleOpenCatalogue = (category, subcategory) => {
         setCatalogueParams({ category, subcategory });
         setIsCatalogueOpen(true);
@@ -2105,12 +2120,10 @@ const App = () => {
                 selectedProduct={selectedProduct} 
                 currentUserData={currentUserData} 
                 logoUrl={logoUrl} 
-                // BURASI EKLENDİ (StoreView'a fonksiyonu gönderiyoruz):
                 onOpenCatalogue={handleOpenCatalogue}
               />
               <ProductModal product={selectedProduct} isOpen={!!selectedProduct} onClose={() => setSelectedProduct(null)} onConfirm={handleAddToCart} currentOrderKarat={orderKarat} />
               
-              {/* BURASI EKLENDİ (Modal Bileşeni): */}
               <CatalogueModal 
                   isOpen={isCatalogueOpen}
                   onClose={() => setIsCatalogueOpen(false)}
