@@ -1812,7 +1812,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                         <AlertTriangle size={32} className="text-yellow-500"/>
                     </div>
                     <h3 className="text-xl font-bold text-slate-800 mb-2">Uyarı</h3>
-                    <p className="text-slate-600 mb-6 font-medium">Sipariş oluşturmak için en az 1 model yükleyiniz.</p>
+                    <p className="text-slate-600 mb-6 font-medium">Sipariş oluşturmak için en az 1 model ekleyiniz.</p>
                     <button onClick={() => setShowEmptyCartModal(false)} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm w-full">Tamam</button>
                 </div>
             </div>
