@@ -919,10 +919,8 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
     const [selectedCategory, setSelectedCategory] = useState("Yüzük");
     const [selectedSubCategory, setSelectedSubCategory] = useState("AS-B");
 
-    // Verileri çek
+    // Verileri çek (Sıralama: Eskiden yeniye)
     useEffect(() => {
-        // DÜZELTME: Sıralamayı 'asc' (eskiden yeniye) yapıyoruz.
-        // Böylece yüklediğiniz sıra bozulmaz (İlk yüklenen en başta görünür).
         let q = query(collection(db, 'artifacts', appId, 'public', 'data', 'catalogue_images'), orderBy('createdAt', 'asc'));
         
         const unsub = onSnapshot(q, (snap) => {
@@ -932,37 +930,54 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
         return () => unsub();
     }, [appId]);
 
-    // Fotoğrafları Kategori > Alt Kategori hiyerarşisine göre grupla
+    // Gruplama Mantığı
     const groupedImages = useMemo(() => {
         const grouped = {};
-        
         images.forEach(img => {
             const cat = img.category || 'Diğer';
             const sub = img.subcategory || 'Genel';
-            
             if (!grouped[cat]) grouped[cat] = {};
             if (!grouped[cat][sub]) grouped[cat][sub] = [];
-            
             grouped[cat][sub].push(img);
         });
         return grouped;
     }, [images]);
 
+    // YÜKLEME FONKSİYONU (STORAGE KULLANIR - ORİJİNAL KALİTE)
     const handleUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+        
+        // Basit boyut kontrolü (Max 15MB)
+        if(file.size > 15 * 1024 * 1024) {
+            setNotification({ type: 'error', message: 'Dosya boyutu çok yüksek (Max 15MB)' });
+            return;
+        }
+
         setUploading(true);
         try {
-            const processed = await processFile(file);
+            // 1. Dosya ismini güvenli hale getir
+            const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
+            const fileName = `catalogue_hd/${Date.now()}_${safeName}`;
+            const storageRef = ref(storage, fileName);
+            
+            // 2. Storage'a yükle (Orijinal Kalite)
+            const uploadTask = await uploadBytesResumable(storageRef, file);
+            const downloadUrl = await getDownloadURL(uploadTask.ref);
+
+            // 3. Veritabanına URL kaydet
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'catalogue_images'), {
-                imageUrl: processed.base64,
+                imageUrl: downloadUrl, // Base64 yerine URL
                 category: selectedCategory,
                 subcategory: selectedSubCategory,
-                createdAt: serverTimestamp()
+                createdAt: serverTimestamp(),
+                storagePath: fileName 
             });
-            setNotification({ type: 'success', message: `${selectedCategory} > ${selectedSubCategory} klasörüne yüklendi.` });
+            
+            setNotification({ type: 'success', message: 'Fotoğraf orijinal kalitede yüklendi.' });
         } catch (error) {
-            setNotification({ type: 'error', message: 'Hata: ' + error.message });
+            console.error("Yükleme hatası:", error);
+            setNotification({ type: 'error', message: 'Yükleme hatası: ' + error.message });
         } finally {
             setUploading(false);
             e.target.value = null;
@@ -982,13 +997,13 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
             <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                <ImageIcon className="text-blue-500"/> Katalog Yönetimi
+                <ImageIcon className="text-blue-500"/> Katalog Yönetimi (HD)
             </h2>
 
             {/* YÜKLEME ALANI */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                    <Upload size={16}/> Yeni Fotoğraf Yükle
+                    <Upload size={16}/> Yeni Fotoğraf Yükle (Orijinal Kalite)
                 </h3>
                 <div className="flex flex-col md:flex-row gap-4 items-end bg-slate-50 p-4 rounded-lg border border-slate-100">
                     <div className="flex-1 w-full grid grid-cols-2 gap-4">
@@ -1090,16 +1105,28 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
     const [currentIndex, setCurrentIndex] = useState(0);
     const [loading, setLoading] = useState(true);
 
-    // Dokunmatik (Swipe) State'leri
+    // Zoom ve Pan (Kaydırma) State'leri
+    const [scale, setScale] = useState(1);
+    const [position, setPosition] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+
+    // Swipe (Resim Değiştirme) State'leri
     const [touchStart, setTouchStart] = useState(null);
     const [touchEnd, setTouchEnd] = useState(null);
-    const minSwipeDistance = 50; 
+    const minSwipeDistance = 50;
 
-    // Verileri Çekme Effect'i
+    // Resim değiştiğinde zoom'u sıfırla
+    useEffect(() => {
+        setScale(1);
+        setPosition({ x: 0, y: 0 });
+    }, [currentIndex]);
+
+    // Verileri Çek
     useEffect(() => {
         if (!isOpen) return;
         setLoading(true);
-        setImages([]); 
+        setImages([]);
         
         let q = query(collection(db, 'artifacts', appId, 'public', 'data', 'catalogue_images'), orderBy('createdAt', 'asc'));
 
@@ -1126,38 +1153,93 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
         if (!isOpen) return;
         const handleKeyDown = (e) => {
             if (images.length === 0) return;
-            if (e.key === 'ArrowLeft') setCurrentIndex(prev => (prev - 1 + images.length) % images.length);
-            else if (e.key === 'ArrowRight') setCurrentIndex(prev => (prev + 1) % images.length);
+            if (e.key === 'ArrowLeft') changeImage(-1);
+            else if (e.key === 'ArrowRight') changeImage(1);
             else if (e.key === 'Escape') onClose();
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, images.length, onClose]);
 
-    // DOKUNMATİK (SWIPE) FONKSİYONLARI
+    const changeImage = (dir) => {
+        // Eğer zoom yapılmışsa resim değiştirmeyi engelle (önce küçültsün)
+        if (scale > 1) return; 
+        
+        if (dir === 1) setCurrentIndex(prev => (prev + 1) % images.length);
+        else setCurrentIndex(prev => (prev - 1 + images.length) % images.length);
+    };
+
+    // --- DOKUNMATİK KONTROLLERİ (ZOOM & SWIPE) ---
+    
+    // Çift Tıklama (Double Tap) -> Zoomla / Küçült
+    const handleDoubleTap = (e) => {
+        if (scale > 1) {
+            setScale(1);
+            setPosition({ x: 0, y: 0 });
+        } else {
+            // Tıklanan noktaya zoom yap (Basitçe 2.5x yapıyoruz)
+            setScale(2.5);
+            setPosition({ x: 0, y: 0 }); 
+        }
+    };
+
     const onTouchStart = (e) => {
-        setTouchEnd(null);
-        setTouchStart(e.targetTouches[0].clientX);
+        if (e.touches.length === 1) {
+            // Tek parmak: Ya swipe (değiştirme) ya da pan (zoomlu iken gezme)
+            if (scale > 1) {
+                setIsDragging(true);
+                setStartPos({ x: e.touches[0].clientX - position.x, y: e.touches[0].clientY - position.y });
+            } else {
+                setTouchEnd(null);
+                setTouchStart(e.touches[0].clientX);
+            }
+        }
     };
 
     const onTouchMove = (e) => {
-        setTouchEnd(e.targetTouches[0].clientX);
+        if (e.touches.length === 1) {
+            if (scale > 1 && isDragging) {
+                // Zoomlu iken resmi kaydır
+                e.preventDefault();
+                setPosition({
+                    x: e.touches[0].clientX - startPos.x,
+                    y: e.touches[0].clientY - startPos.y
+                });
+            } else if (scale === 1) {
+                // Zoom yokken swipe için pozisyon al
+                setTouchEnd(e.touches[0].clientX);
+            }
+        }
     };
 
     const onTouchEnd = () => {
-        if (!touchStart || !touchEnd) return;
-        const distance = touchStart - touchEnd;
-        const isLeftSwipe = distance > minSwipeDistance;
-        const isRightSwipe = distance < -minSwipeDistance;
+        setIsDragging(false);
 
-        if (isLeftSwipe) setCurrentIndex(prev => (prev + 1) % images.length);
-        if (isRightSwipe) setCurrentIndex(prev => (prev - 1 + images.length) % images.length);
+        // Eğer zoom yoksa ve swipe yapıldıysa resmi değiştir
+        if (scale === 1 && touchStart && touchEnd) {
+            const distance = touchStart - touchEnd;
+            const isLeftSwipe = distance > minSwipeDistance;
+            const isRightSwipe = distance < -minSwipeDistance;
+
+            if (isLeftSwipe) changeImage(1); // Sonraki
+            if (isRightSwipe) changeImage(-1); // Önceki
+        }
+    };
+
+    // Tekerlek ile Zoom (Masaüstü için opsiyonel)
+    const handleWheel = (e) => {
+        if(e.ctrlKey) {
+            e.preventDefault();
+            const newScale = scale - e.deltaY * 0.01;
+            setScale(Math.min(Math.max(1, newScale), 4));
+        }
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[500] bg-black flex flex-col items-center justify-center">
+        <div className="fixed inset-0 z-[500] bg-black flex flex-col items-center justify-center overflow-hidden" onWheel={handleWheel}>
+            {/* Kapatma Butonu */}
             <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white z-[510] transition-colors p-2 bg-black/20 rounded-full hover:bg-white/20">
                 <X size={32}/>
             </button>
@@ -1168,23 +1250,40 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
                 </div>
             ) : images.length > 0 ? (
                 <>
+                    {/* Ana Resim Alanı */}
                     <div 
-                        className="flex-1 w-full h-full flex items-center justify-center relative p-0 md:p-4 pb-24 group touch-pan-y"
+                        className="flex-1 w-full h-full flex items-center justify-center relative p-0 md:p-4 pb-24 group overflow-hidden touch-none"
                         onTouchStart={onTouchStart}
                         onTouchMove={onTouchMove}
                         onTouchEnd={onTouchEnd}
+                        onDoubleClick={handleDoubleTap}
                     >
-                        <img 
-                            src={images[currentIndex]} 
-                            className="w-full h-full object-contain animate-in fade-in duration-300 shadow-2xl select-none" 
-                            key={currentIndex} 
-                            alt="Katalog"
-                            style={{ maxHeight: 'calc(100vh - 120px)' }} 
-                        />
-                        <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev - 1 + images.length) % images.length); }} className="hidden md:block absolute left-4 text-white/30 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full group-hover:opacity-100"><ChevronLeft size={48}/></button>
-                        <button onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev + 1) % images.length); }} className="hidden md:block absolute right-4 text-white/30 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full group-hover:opacity-100"><ChevronRight size={48}/></button>
+                        <div 
+                            style={{ 
+                                transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+                                transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+                            }}
+                            className="w-full h-full flex items-center justify-center"
+                        >
+                            <img 
+                                src={images[currentIndex]} 
+                                className="max-w-full max-h-full object-contain select-none shadow-2xl" 
+                                key={currentIndex} 
+                                alt="Katalog"
+                                draggable={false}
+                            />
+                        </div>
+                        
+                        {/* Oklar (Sadece zoom yoksa göster) */}
+                        {scale === 1 && (
+                            <>
+                                <button onClick={(e) => { e.stopPropagation(); changeImage(-1); }} className="hidden md:block absolute left-4 text-white/30 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full group-hover:opacity-100"><ChevronLeft size={48}/></button>
+                                <button onClick={(e) => { e.stopPropagation(); changeImage(1); }} className="hidden md:block absolute right-4 text-white/30 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full group-hover:opacity-100"><ChevronRight size={48}/></button>
+                            </>
+                        )}
                     </div>
                     
+                    {/* Alt Küçük Resim Şeridi */}
                     <div className="absolute bottom-0 left-0 w-full h-20 md:h-24 bg-gradient-to-t from-black via-black/90 to-transparent flex items-center gap-2 overflow-x-auto px-4 py-2 scrollbar-hide z-50">
                         {images.map((img, idx) => (
                             <button key={idx} onClick={() => setCurrentIndex(idx)} className={`shrink-0 w-12 h-12 md:w-16 md:h-16 rounded-lg overflow-hidden border-2 transition-all relative ${idx === currentIndex ? 'border-yellow-500 scale-105 opacity-100' : 'border-transparent opacity-40 hover:opacity-100'}`}>
@@ -1193,6 +1292,7 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
                         ))}
                     </div>
                     
+                    {/* Bilgi Çubuğu */}
                     <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full text-white/70 text-xs font-bold border border-white/10 flex items-center gap-2 pointer-events-none">
                         <span>{initialCategory}</span>
                         {initialSubcategory !== "Hepsi" && <><ChevronRight size={12} className="opacity-50"/><span>{initialSubcategory}</span></>}
