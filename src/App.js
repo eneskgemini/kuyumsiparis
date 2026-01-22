@@ -3,20 +3,20 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffe
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, doc, deleteDoc, updateDoc,
-  query, serverTimestamp, onSnapshot, getDocs, writeBatch, where, orderBy, limit, setDoc, getDoc 
+  query, serverTimestamp, onSnapshot, writeBatch, orderBy, setDoc, getDoc, where, getDocs 
 } from 'firebase/firestore';
 import { 
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, 
   signInAnonymously, signInWithCustomToken, signOut, updateProfile
 } from 'firebase/auth';
 import {
-  getStorage, ref, uploadBytesResumable, getDownloadURL, uploadString
+  getStorage, ref, uploadBytesResumable, getDownloadURL
 } from 'firebase/storage';
 import { 
   ShoppingBag, Search, Plus, Trash, LogOut,
   X, Star, RefreshCcw, Folder, ChevronDown, Printer, Download, Save, Check, CheckCheck,
   ArrowUp, Upload, User, Key, ChevronLeft, ChevronRight, AlertTriangle, Users, Send, Settings, Box, CheckCircle, Calendar, Minus, Pencil, Activity, TrendingUp, CheckSquare, FileText, Wand2,
-  Grid, AlignCenter, MousePointer2, Image as ImageIcon, Monitor, Paperclip, Menu, Loader2, FileUp, Bell
+  Grid, AlignCenter, MousePointer2, Monitor, Paperclip, Menu, Loader2, FileUp, MonitorPlay, Image as ImageIcon
 } from 'lucide-react';
 
 // FileIcon alias'ını manuel oluşturuyoruz (FileText kullanarak)
@@ -27,7 +27,6 @@ const FileIcon = FileText;
 // ==========================================
 const DEFAULT_LOGO_URL = "https://i.hizliresim.com/6pdu20m.png"; 
 const DEFAULT_FRAME_URL = "https://i.hizliresim.com/pq4m3mg.png";
-const NOTIFICATION_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"; 
 const CATEGORIES = ["Anasayfa", "Yüzük", "Kolye", "Küpe", "Bileklik", "Set", "Haç"];
 const SUBCATEGORIES = {
   "Yüzük": ["AS-B", "SMG", "SA-Y", "SB-M", "SB-Y", "SH-R", "SH-Y", "SK-Y", "SM-I", "SM-Y", "SR-G", "SS-H", "SS-Y", "ST-I", "ST-O"],
@@ -99,7 +98,7 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                const MAX_SIZE = 1200; // Optimize edilmiş boyut (Daha hızlı yükleme için 2000'den 1200'e düşürüldü)
+                const MAX_SIZE = 1200; 
                 if (width > MAX_SIZE || height > MAX_SIZE) {
                     const ratio = Math.min(MAX_SIZE / width, MAX_SIZE / height);
                     width *= ratio;
@@ -115,7 +114,6 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 let quality = 0.8; 
                 let dataUrl = canvas.toDataURL('image/jpeg', quality);
                 
-                // Base64 string'i döndür
                 resolve({ base64: dataUrl, type: 'image' });
             };
             img.onerror = () => reject(new Error("Görsel işlenemedi."));
@@ -517,135 +515,46 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
 
     const uploadFile = async (file) => {
         if (!file || !selectedUser) return;
-
-        // Boyut kontrolü (örn. 25MB)
-        if (file.size > 25 * 1024 * 1024) {
-            alert("Dosya boyutu çok büyük (Maksimum 25MB).");
-            return;
-        }
-
+        if (file.size > 25 * 1024 * 1024) { alert("Dosya boyutu çok büyük (Maksimum 25MB)."); return; }
         setIsUploading(true);
         try {
-            // YENİ YÖNTEM: Direkt Upload (Raw File Upload)
-            // Canvas resize işlemi kaldırıldı, doğrudan storage'a yükleniyor.
-            
             const storageRef = ref(storage, `chat_attachments/${Date.now()}_${file.name}`);
             const uploadTask = await uploadBytesResumable(storageRef, file);
             const downloadUrl = await getDownloadURL(uploadTask.ref);
-            
             const isImage = file.type.startsWith('image/');
             const messageData = {
-                senderId: currentUserProfile.uid,
-                senderName: currentUserProfile.displayName || currentUserProfile.email,
-                senderEmail: currentUserProfile.email,
-                receiverId: selectedUser.uid,
-                receiverName: selectedUser.displayName || selectedUser.email,
-                createdAt: serverTimestamp(),
-                read: false,
-                type: isImage ? 'image' : 'file',
-                content: isImage ? 'Görsel gönderildi' : 'Dosya gönderildi',
-                fileName: file.name,
-                fileSize: file.size
+                senderId: currentUserProfile.uid, senderName: currentUserProfile.displayName || currentUserProfile.email, senderEmail: currentUserProfile.email,
+                receiverId: selectedUser.uid, receiverName: selectedUser.displayName || selectedUser.email, createdAt: serverTimestamp(), read: false,
+                type: isImage ? 'image' : 'file', content: isImage ? 'Görsel gönderildi' : 'Dosya gönderildi', fileName: file.name, fileSize: file.size
             };
-
-            if (isImage) {
-                messageData.imageUrl = downloadUrl;
-            } else {
-                messageData.fileUrl = downloadUrl;
-            }
-
+            if (isImage) { messageData.imageUrl = downloadUrl; } else { messageData.fileUrl = downloadUrl; }
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), messageData);
-        } catch (error) {
-            console.error("Dosya yükleme hatası:", error);
-            alert("Dosya gönderilemedi: " + error.message);
-        } finally {
-            setIsUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-        }
+        } catch (error) { console.error("Dosya yükleme hatası:", error); alert("Dosya gönderilemedi: " + error.message); } finally { setIsUploading(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
     };
 
-    const handleInputFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            uploadFile(file);
-        }
-    };
-
-    // Sürükle Bırak Olayları
-    const handleDragOver = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!isDragOver) setIsDragOver(true);
-    };
-
-    const handleDragLeave = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // Eğer fare container'ın bir çocuğuna (örn: mesaj balonuna) giriyorsa
-        // aslında container'dan çıkmamışızdır.
-        if (e.currentTarget.contains(e.relatedTarget)) {
-            return;
-        }
-        setIsDragOver(false);
-    };
-
-    const handleDrop = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragOver(false);
-        const file = e.dataTransfer.files[0];
-        if (file) {
-            uploadFile(file);
-        }
-    };
-    
-    const triggerDelete = (type, id = null) => {
-        setDeleteConfig({
-            isOpen: true,
-            type,
-            id,
-            title: type === 'all' ? 'Sohbeti Temizle' : 'Mesajı Sil',
-            message: type === 'all' 
-                ? 'Bu kişiyle olan TÜM mesajlaşma geçmişini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.' 
-                : 'Bu mesajı silmek istediğinize emin misiniz?'
-        });
-    };
+    const handleInputFileChange = (e) => { const file = e.target.files[0]; if (file) { uploadFile(file); } };
+    const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); if (!isDragOver) setIsDragOver(true); };
+    const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); if (e.currentTarget.contains(e.relatedTarget)) { return; } setIsDragOver(false); };
+    const handleDrop = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(false); const file = e.dataTransfer.files[0]; if (file) { uploadFile(file); } };
+    const triggerDelete = (type, id = null) => { setDeleteConfig({ isOpen: true, type, id, title: type === 'all' ? 'Sohbeti Temizle' : 'Mesajı Sil', message: type === 'all' ? 'Bu kişiyle olan TÜM mesajlaşma geçmişini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.' : 'Bu mesajı silmek istediğinize emin misiniz?' }); };
 
     const executeDelete = async () => {
         try {
-            if (deleteConfig.type === 'single' && deleteConfig.id) {
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'messages', deleteConfig.id));
-            } else if (deleteConfig.type === 'all' && selectedUser) {
+            if (deleteConfig.type === 'single' && deleteConfig.id) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'messages', deleteConfig.id)); } 
+            else if (deleteConfig.type === 'all' && selectedUser) {
                 const batch = writeBatch(db);
-                const chatMessages = messages.filter(m => 
-                    (m.senderId === currentUserProfile.uid && m.receiverId === selectedUser.uid) || 
-                    (m.senderId === selectedUser.uid && m.receiverId === currentUserProfile.uid)
-                );
-                chatMessages.forEach(m => {
-                    batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'messages', m.id));
-                });
+                const chatMessages = messages.filter(m => (m.senderId === currentUserProfile.uid && m.receiverId === selectedUser.uid) || (m.senderId === selectedUser.uid && m.receiverId === currentUserProfile.uid));
+                chatMessages.forEach(m => { batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'messages', m.id)); });
                 await batch.commit();
             }
-        } catch(e) {
-            console.error("Silme hatası", e);
-            alert("Bir hata oluştu.");
-        } finally {
-            setDeleteConfig({ ...deleteConfig, isOpen: false });
-        }
+        } catch(e) { console.error("Silme hatası", e); alert("Bir hata oluştu."); } finally { setDeleteConfig({ ...deleteConfig, isOpen: false }); }
     };
 
     const getUnreadCount = (userId) => messages.filter(m => m.senderId === userId && m.receiverId === currentUserProfile.uid && !m.read).length;
 
     return (
         <div className="flex flex-col md:flex-row h-[600px] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
-            <ConfirmationModal 
-                isOpen={deleteConfig.isOpen}
-                onClose={() => setDeleteConfig({ ...deleteConfig, isOpen: false })}
-                onConfirm={executeDelete}
-                title={deleteConfig.title}
-                message={deleteConfig.message}
-            />
-            
+            <ConfirmationModal isOpen={deleteConfig.isOpen} onClose={() => setDeleteConfig({ ...deleteConfig, isOpen: false })} onConfirm={executeDelete} title={deleteConfig.title} message={deleteConfig.message} />
             {previewImage && <div className="fixed inset-0 z-[400] bg-black/90 flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}><img src={previewImage} className="max-w-full max-h-full object-contain"/></div>}
             
             <div className={`w-full md:w-1/3 border-r border-slate-100 bg-slate-50 flex flex-col ${selectedUser ? 'hidden md:flex' : 'flex'}`}>
@@ -680,114 +589,23 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
                                 <button onClick={()=>{setSelectedUser(null)}} className="text-slate-400 hover:text-slate-600 p-2 hidden md:block"><X size={18}/></button>
                             </div>
                         </div>
-                        
-                        {/* Mesaj Alanı ve Drag & Drop */}
-                        <div 
-                            className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 custom-scrollbar relative" 
-                            ref={scrollContainerRef}
-                            onDragOver={handleDragOver}
-                            onDragLeave={handleDragLeave}
-                            onDrop={handleDrop}
-                        >
-                            {/* Drag & Drop Overlay */}
-                            {isDragOver && (
-                                <div className="absolute inset-0 z-50 bg-blue-50/90 border-4 border-dashed border-blue-400 rounded-lg flex flex-col items-center justify-center animate-in fade-in duration-200 backdrop-blur-sm m-2 pointer-events-none">
-                                    <FileUp size={64} className="text-blue-500 mb-4 animate-bounce" />
-                                    <h3 className="text-xl font-bold text-blue-800">Dosyayı Buraya Bırakın</h3>
-                                    <p className="text-blue-600 font-medium">Göndermek için sürükleyip bırakın</p>
-                                </div>
-                            )}
-
+                        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 custom-scrollbar relative" ref={scrollContainerRef} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+                            {isDragOver && (<div className="absolute inset-0 z-50 bg-blue-50/90 border-4 border-dashed border-blue-400 rounded-lg flex flex-col items-center justify-center animate-in fade-in duration-200 backdrop-blur-sm m-2 pointer-events-none"><FileUp size={64} className="text-blue-500 mb-4 animate-bounce" /><h3 className="text-xl font-bold text-blue-800">Dosyayı Buraya Bırakın</h3><p className="text-blue-600 font-medium">Göndermek için sürükleyip bırakın</p></div>)}
                             {messages.filter(m => (m.senderId === currentUserProfile.uid && m.receiverId === selectedUser.uid) || (m.senderId === selectedUser.uid && m.receiverId === currentUserProfile.uid)).map(m => (
                                 <div key={m.id} className={`flex ${m.senderId === currentUserProfile.uid ? 'justify-end' : 'justify-start'} group relative items-end gap-2`}>
-                                    
-                                    <div className={`${m.senderId === currentUserProfile.uid ? 'order-first' : 'order-last'}`}>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); triggerDelete('single', m.id); }} 
-                                            className="p-2 text-slate-300 hover:text-red-500 transition-colors"
-                                            title="Mesajı Sil"
-                                        >
-                                            <Trash size={16}/>
-                                        </button>
-                                    </div>
-                                    
+                                    <div className={`${m.senderId === currentUserProfile.uid ? 'order-first' : 'order-last'}`}><button onClick={(e) => { e.stopPropagation(); triggerDelete('single', m.id); }} className="p-2 text-slate-300 hover:text-red-500 transition-colors" title="Mesajı Sil"><Trash size={16}/></button></div>
                                     <div className={`p-3 rounded-2xl text-sm max-w-[85%] break-words shadow-sm relative ${m.senderId === currentUserProfile.uid ? 'bg-slate-800 text-white rounded-br-none' : 'bg-white border rounded-bl-none'}`}>
-                                        {m.type === 'image' ? (
-                                            <div className="overflow-hidden rounded-lg relative group/img">
-                                                <img 
-                                                    src={m.imageUrl} 
-                                                    className="w-full h-auto max-h-64 object-cover cursor-pointer" 
-                                                    onClick={()=>setPreviewImage(m.imageUrl)}
-                                                    onLoad={() => scrollToBottom()} 
-                                                    loading="lazy"
-                                                />
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleDownload(m.imageUrl, `gorsel_${m.id}.png`); }}
-                                                    className="absolute bottom-2 right-2 bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full opacity-0 group-hover/img:opacity-100 transition-opacity"
-                                                    title="Görseli İndir"
-                                                >
-                                                    <Download size={16} />
-                                                </button>
-                                            </div>
-                                        ) : m.type === 'file' ? (
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-slate-700/20 p-2 rounded-lg shrink-0">
-                                                    <FileIcon size={24} />
-                                                </div>
-                                                <div className="overflow-hidden min-w-0">
-                                                    <div className="font-bold truncate text-xs mb-0.5">{m.fileName}</div>
-                                                    <div className="text-[10px] opacity-70">{(m.fileSize / 1024 / 1024).toFixed(1)} MB</div>
-                                                </div>
-                                                <button 
-                                                    onClick={() => handleDownload(m.fileUrl, m.fileName)}
-                                                    className="ml-2 p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors shrink-0" 
-                                                    title="İndir"
-                                                >
-                                                    <Download size={16} />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <span className="whitespace-pre-wrap break-words">{m.content}</span>
-                                        )}
-                                        {m.senderId === currentUserProfile.uid && (
-                                            <div className="flex justify-end mt-1 -mr-1">
-                                                {m.read ? (
-                                                    <CheckCheck size={14} className="text-blue-400" strokeWidth={3} />
-                                                ) : (
-                                                    <Check size={14} className="text-slate-500" strokeWidth={3} />
-                                                )}
-                                            </div>
-                                        )}
+                                        {m.type === 'image' ? (<div className="overflow-hidden rounded-lg relative group/img"><img src={m.imageUrl} className="w-full h-auto max-h-64 object-cover cursor-pointer" onClick={()=>setPreviewImage(m.imageUrl)} onLoad={() => scrollToBottom()} loading="lazy"/><button onClick={(e) => { e.stopPropagation(); handleDownload(m.imageUrl, `gorsel_${m.id}.png`); }} className="absolute bottom-2 right-2 bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full opacity-0 group-hover/img:opacity-100 transition-opacity" title="Görseli İndir"><Download size={16} /></button></div>) : m.type === 'file' ? (<div className="flex items-center gap-3"><div className="bg-slate-700/20 p-2 rounded-lg shrink-0"><FileIcon size={24} /></div><div className="overflow-hidden min-w-0"><div className="font-bold truncate text-xs mb-0.5">{m.fileName}</div><div className="text-[10px] opacity-70">{(m.fileSize / 1024 / 1024).toFixed(1)} MB</div></div><button onClick={() => handleDownload(m.fileUrl, m.fileName)} className="ml-2 p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-colors shrink-0" title="İndir"><Download size={16} /></button></div>) : (<span className="whitespace-pre-wrap break-words">{m.content}</span>)}
+                                        {m.senderId === currentUserProfile.uid && (<div className="flex justify-end mt-1 -mr-1">{m.read ? (<CheckCheck size={14} className="text-blue-400" strokeWidth={3} />) : (<Check size={14} className="text-slate-500" strokeWidth={3} />)}</div>)}
                                     </div>
                                 </div>
                             ))}
-                            {isUploading && (
-                                <div className="flex justify-end">
-                                    <div className="bg-slate-100 text-slate-600 rounded-2xl rounded-br-none p-3 text-xs font-bold flex items-center gap-2">
-                                        <Loader2 size={14} className="animate-spin" />
-                                        Dosya yükleniyor...
-                                    </div>
-                                </div>
-                            )}
+                            {isUploading && (<div className="flex justify-end"><div className="bg-slate-100 text-slate-600 rounded-2xl rounded-br-none p-3 text-xs font-bold flex items-center gap-2"><Loader2 size={14} className="animate-spin" />Dosya yükleniyor...</div></div>)}
                             <div ref={messagesEndRef}></div>
                         </div>
                         <form onSubmit={handleSendMessage} className="p-3 bg-white border-t flex gap-2 items-center">
-                            <input 
-                                type="file" 
-                                className="hidden" 
-                                ref={fileInputRef} 
-                                onChange={handleInputFileChange}
-                            />
-                            <button 
-                                type="button" 
-                                onClick={() => fileInputRef.current.click()}
-                                className="bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-full p-2 transition-colors flex items-center gap-2 px-3"
-                                title="Dosya Ekle"
-                                disabled={isUploading}
-                            >
-                                <Paperclip size={18}/>
-                                <span className="text-xs font-bold hidden md:inline">Dosya</span>
-                            </button>
+                            <input type="file" className="hidden" ref={fileInputRef} onChange={handleInputFileChange}/>
+                            <button type="button" onClick={() => fileInputRef.current.click()} className="bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-full p-2 transition-colors flex items-center gap-2 px-3" title="Dosya Ekle" disabled={isUploading}><Paperclip size={18}/><span className="text-xs font-bold hidden md:inline">Dosya</span></button>
                             <input className="flex-1 bg-slate-100 border-0 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-100 outline-none" placeholder="Mesaj... (Sürükle bırak yapabilirsiniz)" value={newMessage} onChange={e => setNewMessage(e.target.value)} />
                             <button type="submit" disabled={isUploading || !newMessage.trim()} className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-full p-2 transition-colors disabled:opacity-50"><Send size={18}/></button>
                         </form>
@@ -799,359 +617,39 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
 };
 
 const AIStudio = () => {
-    const [customFrameUrl, setCustomFrameUrl] = useState(() => {
-        return localStorage.getItem('sahra_studio_frame') || DEFAULT_FRAME_URL;
-    });
-
-    const canvasRef = useRef(null);
-    const containerRef = useRef(null);
-    const frameInputRef = useRef(null); 
-    const [userImage, setUserImage] = useState(null);
-    const [frameImage, setFrameImage] = useState(null);
-    const [imgState, setImgState] = useState({ x: 0, y: 0, w: 200, h: 200, aspect: 1 });
-    const [prodCode, setProdCode] = useState("");
-    const [prodGram, setProdGram] = useState("");
-    
-    const [showGrid, setShowGrid] = useState(false);
-    const [isDragging, setIsDragging] = useState(false);
-    const [dragType, setDragType] = useState(null); 
-    const [activeHandle, setActiveHandle] = useState(null); 
-    
-    const startPosRef = useRef({ x: 0, y: 0 });
-    const startImgStateRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
-
-    useEffect(() => {
-        if(customFrameUrl) { 
-            const img = new Image(); 
-            img.crossOrigin = "anonymous"; 
-            img.src = customFrameUrl; 
-            img.onload = () => setFrameImage(img); 
-        }
-    }, [customFrameUrl]);
-
-    const handleFrameSettingsClick = () => {
-        if(frameInputRef.current) {
-            frameInputRef.current.click();
-        }
-    };
-
-    const handleFrameSettingsUpload = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-             const reader = new FileReader();
-             reader.onload = (evt) => {
-                 const res = evt.target.result;
-                 setCustomFrameUrl(res);
-                 localStorage.setItem('sahra_studio_frame', res); 
-             };
-             reader.readAsDataURL(file);
-        }
-    };
-
-    const getMousePos = (e) => {
-        const canvas = canvasRef.current;
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        return {
-            x: (e.clientX - rect.left) * scaleX,
-            y: (e.clientY - rect.top) * scaleY
-        };
-    };
-
-    const draw = useCallback((isExport = false) => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        if (frameImage) ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
-        
-        if (userImage) {
-            ctx.drawImage(userImage, imgState.x, imgState.y, imgState.w, imgState.h);
-            
-            if (!isExport) {
-                const handleSize = 10;
-                ctx.strokeStyle = "#2563eb"; 
-                ctx.lineWidth = 2;
-                
-                ctx.strokeRect(imgState.x, imgState.y, imgState.w, imgState.h);
-                
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(imgState.x - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize);
-                ctx.strokeRect(imgState.x - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize);
-                ctx.fillRect(imgState.x + imgState.w - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize);
-                ctx.strokeRect(imgState.x + imgState.w - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize);
-                ctx.fillRect(imgState.x - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize);
-                ctx.strokeRect(imgState.x - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize);
-                ctx.fillRect(imgState.x + imgState.w - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize);
-                ctx.strokeRect(imgState.x + imgState.w - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize);
-            }
-        }
-
-        if (showGrid && !isExport) {
-            ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
-            ctx.lineWidth = 1;
-            const gridSize = 50;
-            
-            for (let x = 0; x <= canvas.width; x += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
-            
-            for (let y = 0; y <= canvas.height; y += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
-                ctx.stroke();
-            }
-            
-            ctx.strokeStyle = "rgba(255, 0, 0, 0.4)";
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, canvas.height); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, canvas.height/2); ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke();
-        }
-
-        if (prodCode || prodGram) {
-            ctx.textAlign = "right"; 
-            ctx.fillStyle = "#000000";
-            
-            const alignRightX = canvas.width - 40;
-
-            if(prodGram) {
-                 ctx.font = "normal 38pt 'Myriad Arabic', sans-serif";
-                 ctx.fillText(prodGram.trim() + " gr", alignRightX, canvas.height - 40);
-            }
-            if(prodCode) {
-                ctx.font = "bold 40pt 'Myriad Arabic', sans-serif";
-                ctx.fillText(prodCode.trim(), alignRightX, canvas.height - 100);
-            }
-        }
-    }, [userImage, frameImage, imgState, prodCode, prodGram, showGrid]);
-
+    const [customFrameUrl, setCustomFrameUrl] = useState(() => { return localStorage.getItem('sahra_studio_frame') || DEFAULT_FRAME_URL; });
+    const canvasRef = useRef(null); const containerRef = useRef(null); const frameInputRef = useRef(null); 
+    const [userImage, setUserImage] = useState(null); const [frameImage, setFrameImage] = useState(null); const [imgState, setImgState] = useState({ x: 0, y: 0, w: 200, h: 200, aspect: 1 }); const [prodCode, setProdCode] = useState(""); const [prodGram, setProdGram] = useState(""); const [showGrid, setShowGrid] = useState(false); const [isDragging, setIsDragging] = useState(false); const [dragType, setDragType] = useState(null); const [activeHandle, setActiveHandle] = useState(null); const startPosRef = useRef({ x: 0, y: 0 }); const startImgStateRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
+    useEffect(() => { if(customFrameUrl) { const img = new Image(); img.crossOrigin = "anonymous"; img.src = customFrameUrl; img.onload = () => setFrameImage(img); } }, [customFrameUrl]);
+    const handleFrameSettingsClick = () => { if(frameInputRef.current) { frameInputRef.current.click(); } };
+    const handleFrameSettingsUpload = (e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (evt) => { const res = evt.target.result; setCustomFrameUrl(res); localStorage.setItem('sahra_studio_frame', res); }; reader.readAsDataURL(file); } };
+    const getMousePos = (e) => { const canvas = canvasRef.current; const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height; return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }; };
+    const draw = useCallback((isExport = false) => { const canvas = canvasRef.current; if (!canvas) return; const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); if (frameImage) ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height); if (userImage) { ctx.drawImage(userImage, imgState.x, imgState.y, imgState.w, imgState.h); if (!isExport) { const handleSize = 10; ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 2; ctx.strokeRect(imgState.x, imgState.y, imgState.w, imgState.h); ctx.fillStyle = "#ffffff"; ctx.fillRect(imgState.x - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize); ctx.strokeRect(imgState.x - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize); ctx.fillRect(imgState.x + imgState.w - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize); ctx.strokeRect(imgState.x + imgState.w - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize); ctx.fillRect(imgState.x - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize); ctx.strokeRect(imgState.x - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize); ctx.fillRect(imgState.x + imgState.w - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize); ctx.strokeRect(imgState.x + imgState.w - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize); } } if (showGrid && !isExport) { ctx.strokeStyle = "rgba(0, 0, 0, 0.2)"; ctx.lineWidth = 1; const gridSize = 50; for (let x = 0; x <= canvas.width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); } for (let y = 0; y <= canvas.height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); } ctx.strokeStyle = "rgba(255, 0, 0, 0.4)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, canvas.height); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, canvas.height/2); ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke(); } if (prodCode || prodGram) { ctx.textAlign = "right"; ctx.fillStyle = "#000000"; const alignRightX = canvas.width - 40; if(prodGram) { ctx.font = "normal 38pt 'Myriad Arabic', sans-serif"; ctx.fillText(prodGram.trim() + " gr", alignRightX, canvas.height - 40); } if(prodCode) { ctx.font = "bold 40pt 'Myriad Arabic', sans-serif"; ctx.fillText(prodCode.trim(), alignRightX, canvas.height - 100); } } }, [userImage, frameImage, imgState, prodCode, prodGram, showGrid]);
     useEffect(() => { draw(); }, [draw]);
-
-    const handleImageUpload = (e) => {
-        const file = e.target.files[0];
-        if (file) { 
-            const img = new Image(); 
-            img.onload = () => { 
-                setUserImage(img);
-                const canvas = canvasRef.current;
-                const aspect = img.width / img.height;
-                const initialW = 300;
-                const initialH = initialW / aspect;
-                setImgState({
-                    x: (canvas.width - initialW) / 2, 
-                    y: (canvas.height - initialH) / 2, 
-                    w: initialW, 
-                    h: initialH, 
-                    aspect: aspect
-                }); 
-            }; 
-            img.src = URL.createObjectURL(file); 
-        }
-    };
-
-    const handleMouseDown = (e) => {
-        if (!userImage) return;
-        const pos = getMousePos(e);
-        const handleSize = 20; 
-
-        let currentType = null;
-        let currentHandle = null;
-
-        if (Math.abs(pos.x - imgState.x) < handleSize && Math.abs(pos.y - imgState.y) < handleSize) {
-            currentType = 'resize'; currentHandle = 'tl';
-        }
-        else if (Math.abs(pos.x - (imgState.x + imgState.w)) < handleSize && Math.abs(pos.y - imgState.y) < handleSize) {
-            currentType = 'resize'; currentHandle = 'tr';
-        }
-        else if (Math.abs(pos.x - imgState.x) < handleSize && Math.abs(pos.y - (imgState.y + imgState.h)) < handleSize) {
-            currentType = 'resize'; currentHandle = 'bl';
-        }
-        else if (Math.abs(pos.x - (imgState.x + imgState.w)) < handleSize && Math.abs(pos.y - (imgState.y + imgState.h)) < handleSize) {
-            currentType = 'resize'; currentHandle = 'br';
-        }
-        else if (pos.x > imgState.x && pos.x < imgState.x + imgState.w && pos.y > imgState.y && pos.y < imgState.y + imgState.h) {
-            currentType = 'move'; currentHandle = null;
-        }
-
-        if (currentType) {
-            setDragType(currentType); 
-            setActiveHandle(currentHandle); 
-            setIsDragging(true);
-
-            startPosRef.current = pos;
-            startImgStateRef.current = { ...imgState };
-        }
-    };
-
-    const handleMouseMove = (e) => {
-        if (!isDragging || !userImage) {
-            return;
-        }
-
-        const pos = getMousePos(e);
-        const dx = pos.x - startPosRef.current.x;
-        const dy = pos.y - startPosRef.current.y;
-
-        if (dragType === 'move') {
-            setImgState(prev => ({
-                ...prev,
-                x: startImgStateRef.current.x + dx,
-                y: startImgStateRef.current.y + dy
-            }));
-        } else if (dragType === 'resize') {
-            const startState = startImgStateRef.current;
-            let newW = startState.w;
-            let newH = startState.h;
-            let newX = startState.x;
-            let newY = startState.y;
-
-            if (activeHandle === 'br') {
-                newW = startState.w + dx;
-                newH = newW / imgState.aspect;
-            } else if (activeHandle === 'bl') {
-                newW = startState.w - dx;
-                newH = newW / imgState.aspect;
-                newX = startState.x + dx;
-            } else if (activeHandle === 'tr') {
-                newW = startState.w + dx;
-                newH = newW / imgState.aspect;
-                newY = startState.y - (newH - startState.h);
-            } else if (activeHandle === 'tl') {
-                newW = startState.w - dx;
-                newH = newW / imgState.aspect;
-                newX = startState.x + dx;
-                newY = startState.y - (newH - startState.h);
-            }
-
-            if (newW > 20 && newH > 20) {
-                setImgState({
-                    ...imgState,
-                    x: newX,
-                    y: newY,
-                    w: newW,
-                    h: newH
-                });
-            }
-        }
-    };
-
-    const handleMouseUp = () => {
-        setIsDragging(false);
-        setDragType(null);
-        setActiveHandle(null);
-    };
-
-    const centerImage = () => {
-        if (!userImage) return;
-        const canvas = canvasRef.current;
-        setImgState(prev => ({
-            ...prev,
-            x: (canvas.width - prev.w) / 2,
-            y: (canvas.height - prev.h) / 2
-        }));
-    };
-    
-    const handleDownloadImage = () => {
-        draw(true);
-        
-        setTimeout(() => {
-             try {
-                 const link = document.createElement('a');
-                 link.download = 'sahra_studio.png';
-                 link.href = canvasRef.current.toDataURL();
-                 link.click();
-             } catch(e) {
-                 console.error("İndirme hatası", e);
-             } finally {
-                 draw(false);
-             }
-        }, 50);
-    };
+    const handleImageUpload = (e) => { const file = e.target.files[0]; if (file) { const img = new Image(); img.onload = () => { setUserImage(img); const canvas = canvasRef.current; const aspect = img.width / img.height; const initialW = 300; const initialH = initialW / aspect; setImgState({ x: (canvas.width - initialW) / 2, y: (canvas.height - initialH) / 2, w: initialW, h: initialH, aspect: aspect }); }; img.src = URL.createObjectURL(file); } };
+    const handleMouseDown = (e) => { if (!userImage) return; const pos = getMousePos(e); const handleSize = 20; let currentType = null; let currentHandle = null; if (Math.abs(pos.x - imgState.x) < handleSize && Math.abs(pos.y - imgState.y) < handleSize) { currentType = 'resize'; currentHandle = 'tl'; } else if (Math.abs(pos.x - (imgState.x + imgState.w)) < handleSize && Math.abs(pos.y - imgState.y) < handleSize) { currentType = 'resize'; currentHandle = 'tr'; } else if (Math.abs(pos.x - imgState.x) < handleSize && Math.abs(pos.y - (imgState.y + imgState.h)) < handleSize) { currentType = 'resize'; currentHandle = 'bl'; } else if (Math.abs(pos.x - (imgState.x + imgState.w)) < handleSize && Math.abs(pos.y - (imgState.y + imgState.h)) < handleSize) { currentType = 'resize'; currentHandle = 'br'; } else if (pos.x > imgState.x && pos.x < imgState.x + imgState.w && pos.y > imgState.y && pos.y < imgState.y + imgState.h) { currentType = 'move'; currentHandle = null; } if (currentType) { setDragType(currentType); setActiveHandle(currentHandle); setIsDragging(true); startPosRef.current = pos; startImgStateRef.current = { ...imgState }; } };
+    const handleMouseMove = (e) => { if (!isDragging || !userImage) { return; } const pos = getMousePos(e); const dx = pos.x - startPosRef.current.x; const dy = pos.y - startPosRef.current.y; if (dragType === 'move') { setImgState(prev => ({ ...prev, x: startImgStateRef.current.x + dx, y: startImgStateRef.current.y + dy })); } else if (dragType === 'resize') { const startState = startImgStateRef.current; let newW = startState.w; let newH = startState.h; let newX = startState.x; let newY = startState.y; if (activeHandle === 'br') { newW = startState.w + dx; newH = newW / imgState.aspect; } else if (activeHandle === 'bl') { newW = startState.w - dx; newH = newW / imgState.aspect; newX = startState.x + dx; } else if (activeHandle === 'tr') { newW = startState.w + dx; newH = newW / imgState.aspect; newY = startState.y - (newH - startState.h); } else if (activeHandle === 'tl') { newW = startState.w - dx; newH = newW / imgState.aspect; newX = startState.x + dx; newY = startState.y - (newH - startState.h); } if (newW > 20 && newH > 20) { setImgState({ ...imgState, x: newX, y: newY, w: newW, h: newH }); } } };
+    const handleMouseUp = () => { setIsDragging(false); setDragType(null); setActiveHandle(null); };
+    const centerImage = () => { if (!userImage) return; const canvas = canvasRef.current; setImgState(prev => ({ ...prev, x: (canvas.width - prev.w) / 2, y: (canvas.height - prev.h) / 2 })); };
+    const handleDownloadImage = () => { draw(true); setTimeout(() => { try { const link = document.createElement('a'); link.download = 'sahra_studio.png'; link.href = canvasRef.current.toDataURL(); link.click(); } catch(e) { console.error("İndirme hatası", e); } finally { draw(false); } }, 50); };
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-full flex flex-col md:flex-row gap-6 relative">
-            <input 
-                type="file" 
-                ref={frameInputRef} 
-                onChange={handleFrameSettingsUpload} 
-                className="hidden" 
-                accept="image/*"
-            />
-            
-            <button 
-                onClick={handleFrameSettingsClick}
-                className="absolute top-4 right-4 z-20 p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors shadow-sm"
-                title="Varsayılan Çerçeveyi Değiştir"
-            >
-                <Settings size={20} />
-            </button>
-
+            <input type="file" ref={frameInputRef} onChange={handleFrameSettingsUpload} className="hidden" accept="image/*" />
+            <button onClick={handleFrameSettingsClick} className="absolute top-4 right-4 z-20 p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors shadow-sm" title="Varsayılan Çerçeveyi Değiştir"><Settings size={20} /></button>
             <div className="w-full md:w-1/3 flex flex-col gap-4">
                  <div className="bg-slate-50 p-4 rounded-lg shadow-inner">
                     <h3 className="font-bold mb-4 text-slate-800 flex items-center gap-2"><Wand2 size={18} className="text-purple-600"/> Stüdyo</h3>
                     <div className="space-y-3">
-                        
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 mb-1 flex items-center gap-1"><Monitor size={12}/> Ürün Görseli</label>
-                            <input type="file" onChange={handleImageUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-                        </div>
+                        <div><label className="text-xs font-bold text-slate-500 mb-1 flex items-center gap-1"><Monitor size={12}/> Ürün Görseli</label><input type="file" onChange={handleImageUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/></div>
                         <div className="border-t border-slate-200 my-2"></div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 mb-1 block">Ürün Kodu</label>
-                                <input type="text" placeholder="Kod" value={prodCode} onChange={e=>setProdCode(e.target.value)} className="w-full border p-2 rounded text-sm"/>
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 mb-1 block">Gram</label>
-                                <input type="text" placeholder="Gram" value={prodGram} onChange={e=>setProdGram(e.target.value)} className="w-full border p-2 rounded text-sm"/>
-                            </div>
-                        </div>
+                        <div className="grid grid-cols-2 gap-2"><div><label className="text-xs font-bold text-slate-500 mb-1 block">Ürün Kodu</label><input type="text" placeholder="Kod" value={prodCode} onChange={e=>setProdCode(e.target.value)} className="w-full border p-2 rounded text-sm"/></div><div><label className="text-xs font-bold text-slate-500 mb-1 block">Gram</label><input type="text" placeholder="Gram" value={prodGram} onChange={e=>setProdGram(e.target.value)} className="w-full border p-2 rounded text-sm"/></div></div>
                     </div>
                  </div>
-                 
-                 <div className="grid grid-cols-2 gap-2">
-                     <button 
-                        onClick={() => setShowGrid(!showGrid)}
-                        className={`py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 border transition-all ${showGrid ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-                     >
-                        <Grid size={16}/> Izgara {showGrid ? 'Açık' : 'Kapalı'}
-                     </button>
-                     <button 
-                        onClick={centerImage}
-                        disabled={!userImage}
-                        className="py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 border bg-white text-slate-600 border-slate-200 hover:bg-slate-50 disabled:opacity-50"
-                     >
-                        <AlignCenter size={16}/> Ortala
-                     </button>
-                 </div>
-
-                 <button onClick={handleDownloadImage} className="bg-slate-900 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-slate-800 flex items-center justify-center gap-2 mt-auto">
-                    <Download size={20}/> Tasarımı İndir
-                 </button>
+                 <div className="grid grid-cols-2 gap-2"><button onClick={() => setShowGrid(!showGrid)} className={`py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 border transition-all ${showGrid ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}><Grid size={16}/> Izgara {showGrid ? 'Açık' : 'Kapalı'}</button><button onClick={centerImage} disabled={!userImage} className="py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 border bg-white text-slate-600 border-slate-200 hover:bg-slate-50 disabled:opacity-50"><AlignCenter size={16}/> Ortala</button></div>
+                 <button onClick={handleDownloadImage} className="bg-slate-900 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-slate-800 flex items-center justify-center gap-2 mt-auto"><Download size={20}/> Tasarımı İndir</button>
             </div>
-            <div className="flex-1 bg-slate-100 rounded-xl p-4 flex items-center justify-center border border-slate-200 relative overflow-hidden group">
-                <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px] opacity-50 pointer-events-none"></div>
-                <canvas 
-                    ref={canvasRef} 
-                    width={800} 
-                    height={800} 
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
-                    className={`w-auto h-full max-h-[600px] bg-white shadow-2xl rounded-lg relative z-10 ${userImage ? 'cursor-grab active:cursor-grabbing' : ''}`}
-                />
-                <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-slate-500 shadow-sm border pointer-events-none flex items-center gap-2">
-                    {isDragging ? <MousePointer2 size={12} className="animate-pulse text-blue-500"/> : null} 
-                    Canlı Önizleme
-                </div>
-            </div>
+            <div className="flex-1 bg-slate-100 rounded-xl p-4 flex items-center justify-center border border-slate-200 relative overflow-hidden group"><div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px] opacity-50 pointer-events-none"></div><canvas ref={canvasRef} width={800} height={800} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} className={`w-auto h-full max-h-[600px] bg-white shadow-2xl rounded-lg relative z-10 ${userImage ? 'cursor-grab active:cursor-grabbing' : ''}`}/><div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-slate-500 shadow-sm border pointer-events-none flex items-center gap-2">{isDragging ? <MousePointer2 size={12} className="animate-pulse text-blue-500"/> : null} Canlı Önizleme</div></div>
         </div>
     );
 };
@@ -1191,6 +689,8 @@ const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) =
         </div>
     );
 };
+
+// ... (AdminProductManager, AdminOrderManager, AdminSettings - Keeping existing code logic)
 
 const AdminProductManager = ({ products, editingId, startEditing, cancelEditing, handleDeleteProduct, handleAddProduct, newProduct, setNewProduct, dragActive, handleDrag, handleDrop, isLoading, logoUrl }) => {
     const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, productId: null });
@@ -1322,7 +822,6 @@ const AdminOrderManager = ({ orders, onCreateNewOrder, onViewOrder, handleUpdate
                 </div>
             </div>
             <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2 pt-2 custom-scrollbar">
-                    {/* "Tümü" butonu kaldırıldı */}
                     {Object.entries(ORDER_STAGES).map(([key, info]) => (
                         <button key={key} onClick={() => setActiveStatusFilter(key)} className={`px-4 py-2 rounded-full text-xs font-bold border whitespace-nowrap min-w-fit flex items-center gap-2 ${activeStatusFilter === key ? 'bg-white ring-2 ring-blue-500' : 'bg-white text-slate-600'}`}>
                             <info.icon size={14}/> {info.label} ({statusCounts[key]})
@@ -1402,6 +901,326 @@ const AdminSettings = ({ logoUrl, handleLogoUpload }) => (
 );
 
 // ==========================================
+// NEW: CATALOGUE COMPONENTS
+// ==========================================
+
+const AdminCatalogueManager = ({ appId, setNotification }) => {
+    const [images, setImages] = useState([]);
+    const [uploading, setUploading] = useState(false);
+    
+    // Yükleme işlemi için seçim state'leri
+    const [selectedCategory, setSelectedCategory] = useState("Yüzük");
+    const [selectedSubCategory, setSelectedSubCategory] = useState("AS-B");
+
+    // Verileri çek
+    useEffect(() => {
+        // DÜZELTME: Sıralamayı 'asc' (eskiden yeniye) yapıyoruz.
+        // Böylece yüklediğiniz sıra bozulmaz (İlk yüklenen en başta görünür).
+        let q = query(collection(db, 'artifacts', appId, 'public', 'data', 'catalogue_images'), orderBy('createdAt', 'asc'));
+        
+        const unsub = onSnapshot(q, (snap) => {
+            const fetchedImages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setImages(fetchedImages);
+        });
+        return () => unsub();
+    }, [appId]);
+
+    // Fotoğrafları Kategori > Alt Kategori hiyerarşisine göre grupla
+    const groupedImages = useMemo(() => {
+        const grouped = {};
+        
+        images.forEach(img => {
+            const cat = img.category || 'Diğer';
+            const sub = img.subcategory || 'Genel';
+            
+            if (!grouped[cat]) grouped[cat] = {};
+            if (!grouped[cat][sub]) grouped[cat][sub] = [];
+            
+            grouped[cat][sub].push(img);
+        });
+        return grouped;
+    }, [images]);
+
+    const handleUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setUploading(true);
+        try {
+            const processed = await processFile(file);
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'catalogue_images'), {
+                imageUrl: processed.base64,
+                category: selectedCategory,
+                subcategory: selectedSubCategory,
+                createdAt: serverTimestamp()
+            });
+            setNotification({ type: 'success', message: `${selectedCategory} > ${selectedSubCategory} klasörüne yüklendi.` });
+        } catch (error) {
+            setNotification({ type: 'error', message: 'Hata: ' + error.message });
+        } finally {
+            setUploading(false);
+            e.target.value = null;
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if(!window.confirm("Bu fotoğrafı silmek istediğinize emin misiniz?")) return;
+        try {
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'catalogue_images', id));
+            setNotification({ type: 'success', message: 'Fotoğraf silindi' });
+        } catch (error) {
+            setNotification({ type: 'error', message: 'Silme hatası' });
+        }
+    };
+
+    return (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                <ImageIcon className="text-blue-500"/> Katalog Yönetimi
+            </h2>
+
+            {/* YÜKLEME ALANI */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                    <Upload size={16}/> Yeni Fotoğraf Yükle
+                </h3>
+                <div className="flex flex-col md:flex-row gap-4 items-end bg-slate-50 p-4 rounded-lg border border-slate-100">
+                    <div className="flex-1 w-full grid grid-cols-2 gap-4">
+                         <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Kategori Seç</label>
+                            <select 
+                                className="w-full border rounded-lg p-3 text-sm font-bold bg-white focus:ring-2 focus:ring-blue-200 outline-none"
+                                value={selectedCategory}
+                                onChange={(e) => {
+                                    const cat = e.target.value;
+                                    setSelectedCategory(cat);
+                                    if(SUBCATEGORIES[cat] && SUBCATEGORIES[cat].length > 0) {
+                                        setSelectedSubCategory(SUBCATEGORIES[cat][0]);
+                                    } else {
+                                        setSelectedSubCategory("Genel");
+                                    }
+                                }}
+                            >
+                                {CATEGORIES.filter(c => c !== "Anasayfa").map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                         </div>
+                         <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Alt Kategori Seç</label>
+                            <select 
+                                className="w-full border rounded-lg p-3 text-sm font-bold bg-white focus:ring-2 focus:ring-blue-200 outline-none"
+                                value={selectedSubCategory}
+                                onChange={(e) => setSelectedSubCategory(e.target.value)}
+                            >
+                                {SUBCATEGORIES[selectedCategory]?.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                         </div>
+                    </div>
+
+                    <label className={`cursor-pointer bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {uploading ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}
+                        <span className="whitespace-nowrap">
+                            {uploading ? 'Yükleniyor...' : 'Seçili Klasöre Yükle'}
+                        </span>
+                        <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+                    </label>
+                </div>
+                
+                {/* LİSTELEME ALANI */}
+                <div className="mt-8 space-y-4">
+                    <div className="text-sm font-bold text-slate-400 mb-2 px-1">Katalog Klasörleri</div>
+                    
+                    {Object.entries(groupedImages).length === 0 && (
+                        <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                            Henüz hiç katalog fotoğrafı yüklenmemiş.
+                        </div>
+                    )}
+
+                    {Object.entries(groupedImages)
+                        .sort(([catA], [catB]) => CATEGORIES.indexOf(catA) - CATEGORIES.indexOf(catB))
+                        .map(([category, subcategories]) => (
+                        <CollapsibleSection 
+                            key={category} 
+                            title={category} 
+                            count={Object.values(subcategories).reduce((acc, curr) => acc + curr.length, 0)} 
+                            level={0}
+                        >
+                            <div className="space-y-2 mt-2">
+                                {Object.entries(subcategories)
+                                    .sort(([subA], [subB]) => subA.localeCompare(subB, undefined, { numeric: true, sensitivity: 'base' }))
+                                    .map(([subcategory, items]) => (
+                                    <CollapsibleSection 
+                                        key={subcategory} 
+                                        title={subcategory} 
+                                        count={items.length} 
+                                        level={1}
+                                    >
+                                        <div className="p-2 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+                                            {items.map(img => (
+                                                <div key={img.id} className="group relative aspect-[9/16] bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shadow-sm hover:shadow-md transition-all">
+                                                    <img src={img.imageUrl} className="w-full h-full object-cover" loading="lazy" />
+                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors"></div>
+                                                    <button 
+                                                        onClick={() => handleDelete(img.id)}
+                                                        className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-md transform scale-90 hover:scale-100"
+                                                        title="Fotoğrafı Sil"
+                                                    >
+                                                        <Trash size={14} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </CollapsibleSection>
+                                ))}
+                            </div>
+                        </CollapsibleSection>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcategory }) => {
+    const [images, setImages] = useState([]);
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [loading, setLoading] = useState(true);
+
+    // Verileri Çekme Effect'i
+    useEffect(() => {
+        if (!isOpen) return;
+        setLoading(true);
+        setImages([]); // Reset images
+        
+        // Sıralama: Yüklenme sırasına göre (Eskiden yeniye)
+        let q = query(collection(db, 'artifacts', appId, 'public', 'data', 'catalogue_images'), orderBy('createdAt', 'asc'));
+
+        const unsub = onSnapshot(q, (snap) => {
+            let fetched = snap.docs.map(d => d.data());
+            
+            // Client-side filtreleme
+            if (initialCategory && initialCategory !== "Anasayfa") {
+                fetched = fetched.filter(img => img.category === initialCategory);
+                if (initialSubcategory && initialSubcategory !== "Hepsi") {
+                    fetched = fetched.filter(img => img.subcategory === initialSubcategory);
+                }
+            }
+            
+            setImages(fetched.map(f => f.imageUrl));
+            setCurrentIndex(0);
+            setLoading(false);
+        });
+        
+        return () => unsub();
+    }, [isOpen, appId, initialCategory, initialSubcategory]);
+
+    // YENİ: Klavye Kontrolleri (Sağ, Sol, ESC)
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (e) => {
+            if (images.length === 0) return;
+
+            if (e.key === 'ArrowLeft') {
+                // Sol ok: Önceki resim
+                setCurrentIndex(prev => (prev - 1 + images.length) % images.length);
+            } else if (e.key === 'ArrowRight') {
+                // Sağ ok: Sonraki resim
+                setCurrentIndex(prev => (prev + 1) % images.length);
+            } else if (e.key === 'Escape') {
+                // ESC: Kapat
+                onClose();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        
+        // Temizleme fonksiyonu
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, images.length, onClose]); // images.length değiştiğinde listener güncellenir
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[500] bg-black flex flex-col items-center justify-center">
+            {/* Kapatma Butonu */}
+            <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white z-[510] transition-colors p-2 bg-black/20 rounded-full hover:bg-white/20">
+                <X size={32}/>
+            </button>
+            
+            {loading ? (
+                <div className="text-white flex items-center gap-2 animate-pulse">
+                    <Loader2 className="animate-spin"/> Yükleniyor...
+                </div>
+            ) : images.length > 0 ? (
+                <>
+                    {/* Ana Resim Alanı */}
+                    <div className="flex-1 w-full h-full flex items-center justify-center relative p-4 pb-24 group">
+                        <img 
+                            src={images[currentIndex]} 
+                            className="max-w-full max-h-full object-contain animate-in fade-in duration-300 shadow-2xl select-none" 
+                            key={currentIndex} 
+                            alt="Katalog"
+                        />
+                        
+                        {/* Sol Ok Butonu */}
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev - 1 + images.length) % images.length); }} 
+                            className="absolute left-4 text-white/30 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
+                            title="Önceki (Sol Ok)"
+                        >
+                            <ChevronLeft size={48}/>
+                        </button>
+                        
+                        {/* Sağ Ok Butonu */}
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setCurrentIndex(prev => (prev + 1) % images.length); }} 
+                            className="absolute right-4 text-white/30 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
+                            title="Sonraki (Sağ Ok)"
+                        >
+                            <ChevronRight size={48}/>
+                        </button>
+                    </div>
+                    
+                    {/* Alt Küçük Resim Şeridi (Thumbnail Strip) */}
+                    <div className="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-black via-black/80 to-transparent flex items-center gap-2 overflow-x-auto px-4 py-2 scrollbar-hide z-50">
+                        {images.map((img, idx) => (
+                            <button 
+                                key={idx} 
+                                onClick={() => setCurrentIndex(idx)} 
+                                className={`shrink-0 w-14 h-14 md:w-16 md:h-16 rounded-lg overflow-hidden border-2 transition-all relative group/thumb ${idx === currentIndex ? 'border-yellow-500 scale-105 opacity-100' : 'border-transparent opacity-40 hover:opacity-100'}`}
+                            >
+                                <img src={img} className="w-full h-full object-cover" loading="lazy" />
+                            </button>
+                        ))}
+                    </div>
+                    
+                    {/* Bilgi Çubuğu */}
+                    <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full text-white/70 text-xs font-bold border border-white/10 flex items-center gap-2">
+                        <span>{initialCategory}</span>
+                        {initialSubcategory !== "Hepsi" && (
+                            <>
+                                <ChevronRight size={12} className="opacity-50"/>
+                                <span>{initialSubcategory}</span>
+                            </>
+                        )}
+                        <span className="ml-2 pl-2 border-l border-white/20 text-yellow-500">
+                            {currentIndex + 1} / {images.length}
+                        </span>
+                    </div>
+                </>
+            ) : (
+                <div className="text-white text-xl flex flex-col items-center gap-4 animate-in zoom-in duration-300">
+                    <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center">
+                        <AlertTriangle size={40} className="text-yellow-500"/>
+                    </div>
+                    <p className="font-light">Bu kategori için henüz katalog fotoğrafı yüklenmemiş.</p>
+                    <button onClick={onClose} className="bg-white text-black hover:bg-slate-200 px-8 py-3 rounded-full text-sm font-bold transition-colors shadow-lg">
+                        Kapat
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
+// ==========================================
 // ADMIN CONTENT LAYOUT
 // ==========================================
 const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, onClose, handleDeleteProduct, handleUpdateStatus, setNotification, onCreateNewOrder, onViewOrder, handleDeleteOrder, logoUrl, handleUpdateLogo }) => {
@@ -1468,7 +1287,7 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
                 </div>
                 
                 <nav className="flex-1 p-4 space-y-2 overflow-x-auto md:overflow-visible flex md:flex-col">
-                    {['dashboard:Özet', 'products:Ürün Yönetimi', 'orders:Siparişler', 'social:Stüdyo', 'messages:Mesajlar', 'settings:Ayarlar'].map(item => {
+                    {['dashboard:Özet', 'products:Ürün Yönetimi', 'orders:Siparişler', 'catalogue:Katalog', 'social:Stüdyo', 'messages:Mesajlar', 'settings:Ayarlar'].map(item => {
                         const [key, label] = item.split(':');
                         return <button key={key} onClick={() => setActiveTab(key)} className={`w-full whitespace-nowrap md:whitespace-normal flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold transition-all ${activeTab === key ? 'bg-yellow-500 text-slate-900' : 'text-slate-400 hover:bg-slate-800'}`}>{label}</button>;
                     })}
@@ -1488,6 +1307,7 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
                 {activeTab === 'dashboard' && <AdminDashboard products={products} orders={orders} dashboardDate={dashboardDate} setDashboardDate={setDashboardDate} />}
                 {activeTab === 'products' && <AdminProductManager products={products} editingId={editingId} startEditing={startEditing} cancelEditing={cancelEditing} handleDeleteProduct={handleDeleteProduct} handleAddProduct={handleAddProduct} newProduct={newProduct} setNewProduct={setNewProduct} dragActive={dragActive} handleDrag={handleDrag} handleDrop={handleDrop} isLoading={isLoading} logoUrl={logoUrl} />}
                 {activeTab === 'orders' && <AdminOrderManager orders={orders} onCreateNewOrder={onCreateNewOrder} onViewOrder={onViewOrder} handleUpdateStatus={handleUpdateStatus} handleDeleteOrder={handleDeleteOrder} />}
+                {activeTab === 'catalogue' && <AdminCatalogueManager appId={appId} setNotification={setNotification} />}
                 {activeTab === 'social' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-slate-800 mb-4">Stüdyo</h2><div className="h-[600px]"><AIStudio /></div></div>}
                 {activeTab === 'messages' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-slate-800 mb-4">Mesajlar</h2><MessagingModule appId={appId} currentUserProfile={currentUserProfile} /></div>}
                 {activeTab === 'settings' && <AdminSettings logoUrl={logoUrl} handleLogoUpload={handleLogoUpload} />}
@@ -1513,6 +1333,7 @@ const ProductCard = React.memo(({ product, onAddToCart, logoUrl }) => (
   </div>
 ));
 
+// ... (ProductModal, UserProfileModal, OrderPreviewModal - Keeping existing code logic)
 const ProductModal = ({ product, isOpen, onClose, onConfirm }) => {
     const [quantity, setQuantity] = useState(1);
     const [size, setSize] = useState("");
@@ -1632,9 +1453,6 @@ const UserProfileModal = ({ user, isOpen, onClose }) => {
     );
 };
 
-// ==========================================
-// ORDER PREVIEW MODAL
-// ==========================================
 const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, onCreateOrder, products, onUpdateOrder, draftData, setDraftData, logoUrl }) => {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -1925,7 +1743,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
 // ==========================================
 // STORE VIEW (UPDATED FOR RESPONSIVENESS)
 // ==========================================
-const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, setIsOrderPreviewOpen, viewingOrder, setViewingOrder, handleCheckout, removeFromCart, orderKarat, user, setIsAdminOpen, setShowLogin, setSelectedProduct, onLogin, currentUserData, logoUrl }) => {
+const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, setIsOrderPreviewOpen, handleCheckout, removeFromCart, orderKarat, user, setIsAdminOpen, setShowLogin, setSelectedProduct, onLogin, currentUserData, logoUrl, onOpenCatalogue }) => {
   const [activeCategory, setActiveCategory] = useState("Anasayfa");
   const [activeSubCategory, setActiveSubCategory] = useState("Hepsi"); 
   const [expandedCategory, setExpandedCategory] = useState(null); // YENİ: Açılır menü durumu
@@ -2021,7 +1839,6 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
             <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 scrollbar-hide">
                 <button onClick={() => handleCategoryClick("Anasayfa")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold transition-all ${activeCategory === "Anasayfa" ? 'bg-yellow-500 text-slate-900' : 'text-slate-400 hover:bg-slate-800'}`}><Search size={18}/> Hızlı Arama</button>
                 
-                {/* DÜZENLENDİ: Ana kategoriler sadece accordion görevi görür */}
                 {CATEGORIES.filter(c => c !== "Anasayfa").map(cat => (
                     <div key={cat} className="group relative">
                         <button 
@@ -2084,10 +1901,29 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                             />
                         </div>
                     )}
+                    
+                    {/* Catalogue Mode Button - Only show if NOT on homepage */}
+                    {activeCategory !== 'Anasayfa' && (
+                        <>
+                            <button 
+                                onClick={() => onOpenCatalogue(activeCategory, activeSubCategory)}
+                                className="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full text-xs font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-300 ml-4 animate-in fade-in zoom-in"
+                            >
+                                <MonitorPlay size={16} className="text-yellow-500" />
+                                Katalog Modu
+                            </button>
+                            <button 
+                                onClick={() => onOpenCatalogue(activeCategory, activeSubCategory)}
+                                className="md:hidden p-2 bg-slate-900 text-white rounded-full shadow-lg shadow-slate-300 ml-2 animate-in fade-in zoom-in"
+                                title="Katalog Modu"
+                            >
+                                <MonitorPlay size={20} className="text-yellow-500" />
+                            </button>
+                        </>
+                    )}
+
                 </div>
                 <div className="flex items-center gap-2 md:gap-4">
-                    {/* Notification Button REMOVED HERE */}
-                    
                     <button onClick={() => { if (cart.length > 0) { setIsOrderPreviewOpen(true); } else { setShowEmptyCartModal(true); } }} className="relative p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors group"><ShoppingBag size={20} className="text-slate-600 group-hover:text-slate-900"/>{cart.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full ring-2 ring-white">{cart.length}</span>}</button>
                     <div className="relative">
                         <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-3 pl-2 md:pl-4 border-l outline-none"><div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs overflow-hidden border border-slate-200">{user?.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : user?.email?.[0]?.toUpperCase()}</div></button>
@@ -2149,75 +1985,21 @@ const App = () => {
     const [logoUrl, setLogoUrl] = useState(DEFAULT_LOGO_URL);
     const [currentUserData, setCurrentUserData] = useState({});
     const [draftData, setDraftData] = useState({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] });
+    
+    // Katalog Modu State'leri (YENİ EKLENDİ)
+    const [isCatalogueOpen, setIsCatalogueOpen] = useState(false);
+    const [catalogueParams, setCatalogueParams] = useState({ category: 'Anasayfa', subcategory: 'Hepsi' });
 
-    // YENİ: Başlık, Favicon ve Manifest Güncellemesi (PWA & Masaüstü Kısayolu için)
+    // Başlık ve Favicon Güncellemesi
     useEffect(() => {
-        const updateAppMetadata = () => {
-            const currentLogo = logoUrl || DEFAULT_LOGO_URL;
-            const appTitle = "Sahra Kuyumculuk";
-
-            // 1. Sayfa Başlığı
-            document.title = appTitle;
-
-            // 2. Favicon (Tarayıcı Sekmesi)
-            let link = document.querySelector("link[rel~='icon']");
-            if (!link) {
-                link = document.createElement('link');
-                link.rel = 'icon';
-                document.head.appendChild(link);
-            }
-            link.href = currentLogo;
-
-            // 3. Apple Touch Icon (iOS Ana Ekran)
-            let appleLink = document.querySelector("link[rel='apple-touch-icon']");
-            if (!appleLink) {
-                appleLink = document.createElement('link');
-                appleLink.rel = 'apple-touch-icon';
-                document.head.appendChild(appleLink);
-            }
-            appleLink.href = currentLogo;
-
-            // 4. Dinamik Manifest (Android/Chrome Masaüstü Kısayolu)
-            // Varolan manifesti temizle (varsa)
-            const existingManifest = document.querySelector("link[rel='manifest']");
-            if (existingManifest) {
-                document.head.removeChild(existingManifest);
-            }
-
-            const manifestData = {
-                name: appTitle,
-                short_name: "Sahra",
-                start_url: ".", 
-                display: "standalone",
-                background_color: "#ffffff",
-                theme_color: "#eab308",
-                icons: [
-                    {
-                        src: currentLogo,
-                        sizes: "192x192",
-                        type: "image/png",
-                        purpose: "any maskable"
-                    },
-                    {
-                        src: currentLogo,
-                        sizes: "512x512",
-                        type: "image/png",
-                        purpose: "any maskable"
-                    }
-                ]
-            };
-
-            const stringManifest = JSON.stringify(manifestData);
-            const blob = new Blob([stringManifest], {type: 'application/json'});
-            const manifestURL = URL.createObjectURL(blob);
-
-            const newManifest = document.createElement('link');
-            newManifest.rel = 'manifest';
-            newManifest.href = manifestURL;
-            document.head.appendChild(newManifest);
-        };
-
-        updateAppMetadata();
+        document.title = "Sahra Kuyumculuk";
+        let link = document.querySelector("link[rel~='icon']");
+        if (!link) {
+            link = document.createElement('link');
+            link.rel = 'icon';
+            document.getElementsByTagName('head')[0].appendChild(link);
+        }
+        link.href = logoUrl || DEFAULT_LOGO_URL;
     }, [logoUrl]);
 
     useEffect(() => {
@@ -2243,59 +2025,21 @@ const App = () => {
 
     useEffect(() => {
         if (!user) return;
-
         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
-
-        const setOnline = async () => {
-            try {
-                await updateDoc(userRef, { 
-                    isOnline: true, 
-                    lastLogin: serverTimestamp() 
-                });
-            } catch(e) { console.error("Online status err:", e); }
-        };
+        const setOnline = async () => { try { await updateDoc(userRef, { isOnline: true, lastLogin: serverTimestamp() }); } catch(e) { console.error("Online status err:", e); } };
         setOnline();
-
-        const interval = setInterval(async () => { 
-            try { 
-                await updateDoc(userRef, { 
-                    isOnline: true, 
-                    lastLogin: serverTimestamp() 
-                }); 
-            } catch(e) { console.log("Heartbeat hatası:", e); } 
-        }, 2 * 60 * 1000); 
-
-        const handleTabClose = async () => {
-            try {
-               updateDoc(userRef, { isOnline: false });
-            } catch (e) { }
-        };
-
+        const interval = setInterval(async () => { try { await updateDoc(userRef, { isOnline: true, lastLogin: serverTimestamp() }); } catch(e) { } }, 2 * 60 * 1000); 
+        const handleTabClose = async () => { try { updateDoc(userRef, { isOnline: false }); } catch (e) { } };
         window.addEventListener('beforeunload', handleTabClose);
-
-        return () => {
-            clearInterval(interval);
-            window.removeEventListener('beforeunload', handleTabClose);
-            handleTabClose();
-        };
+        return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
     }, [user, appId]);
 
     useEffect(() => {
         if (!user) return;
-        
         const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); });
-        
         const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snap) => { setOrders(snap.docs.map(d => ({id:d.id, ...d.data()}))); });
-        
         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
-        const unsubUser = onSnapshot(userRef, (docSnap) => {
-            if (docSnap.exists()) {
-                setCurrentUserData(docSnap.data());
-            } else {
-                setCurrentUserData({});
-            }
-        });
-
+        const unsubUser = onSnapshot(userRef, (docSnap) => { if (docSnap.exists()) { setCurrentUserData(docSnap.data()); } else { setCurrentUserData({}); } });
         return () => { unsubProducts(); unsubOrders(); unsubUser(); };
     }, [user, appId]);
 
@@ -2308,41 +2052,23 @@ const App = () => {
         if(cart.length === 0 && (!items || items.length === 0)) return; 
         if (!user) { alert("Oturum açılıyor..."); return; } 
         try { 
-            const itemsToSave = (items || cart).map(item => { 
-                const { _tempId, imageUrl, imageFile, ...rest } = item; 
-                return rest; 
-            }); 
-            
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), { 
-                customerName: name, 
-                customerPhone: phone, 
-                totalNote: note, 
-                items: itemsToSave, 
-                createdAt: finalOrderDate ? new Date(finalOrderDate) : serverTimestamp(), 
-                status: targetStatus, 
-                deliveryDate: deliveryDate, 
-                orderKarat: karat, 
-                customOrderNo: orderNo, 
-                orderStamp: orderStamp, 
-                createdBy: user.uid 
-            }); 
-            
-            if (targetStatus !== 'draft') { 
-                setCart([]); 
-                setOrderKarat(null); 
-                setDraftData({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] }); 
-            } 
-            setIsOrderPreviewOpen(false); 
-            setNotification({ type: 'success', message: targetStatus === 'draft' ? "Taslak kaydedildi!" : "Sipariş oluşturuldu!" }); 
-        } catch (error) { 
-            setNotification({ type: 'error', message: "Hata: " + error.message }); 
-        } 
+            const itemsToSave = (items || cart).map(item => { const { _tempId, imageUrl, imageFile, ...rest } = item; return rest; }); 
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), { customerName: name, customerPhone: phone, totalNote: note, items: itemsToSave, createdAt: finalOrderDate ? new Date(finalOrderDate) : serverTimestamp(), status: targetStatus, deliveryDate: deliveryDate, orderKarat: karat, customOrderNo: orderNo, orderStamp: orderStamp, createdBy: user.uid }); 
+            if (targetStatus !== 'draft') { setOrderKarat(null); setDraftData({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] }); } 
+            setIsOrderPreviewOpen(false); setNotification({ type: 'success', message: targetStatus === 'draft' ? "Taslak kaydedildi!" : "Sipariş oluşturuldu!" }); 
+        } catch (error) { setNotification({ type: 'error', message: "Hata: " + error.message }); } 
     }, [cart, user, appId]);
     
     const handleUpdateOrder = useCallback(async (orderId, data) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), data); setIsOrderPreviewOpen(false); setViewingOrder(null); setNotification({type:'success', message:'Sipariş güncellendi'}); } catch (error) { setNotification({type:'error', message: error.message}); } }, [appId]);
     const handleDeleteProduct = useCallback(async (id) => { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id)); setNotification({type:'success', message:'Ürün silindi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, [appId]);
     const handleUpdateStatus = useCallback(async (orderId, status) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { status }); setNotification({type:'success', message:'Durum güncellendi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, [appId]);
     const handleDeleteOrder = useCallback(async (orderId) => { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId)); setNotification({type:'success', message:'Sipariş silindi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, [appId]);
+
+    // BU FONKSİYON EKSİKTİ, EKLENDİ:
+    const handleOpenCatalogue = (category, subcategory) => {
+        setCatalogueParams({ category, subcategory });
+        setIsCatalogueOpen(true);
+    };
 
     if (isAdminOpen && user && !user.isAnonymous) {
         return (
@@ -2359,8 +2085,39 @@ const App = () => {
           <PrintStyles />
           {notification && <CustomNotification type={notification.type} message={notification.message} onClose={()=>setNotification(null)} />}
           <div className="screen-only">
-              <StoreView products={products} loading={false} onAddToCart={handleAddToCart} cart={cart} isOrderPreviewOpen={isOrderPreviewOpen} setIsOrderPreviewOpen={setIsOrderPreviewOpen} viewingOrder={viewingOrder} setViewingOrder={setViewingOrder} handleCheckout={handleCheckout} removeFromCart={removeFromCart} orderKarat={orderKarat} user={user} setIsAdminOpen={setIsAdminOpen} setShowLogin={setShowLogin} setSelectedProduct={setSelectedProduct} onLogin={handleAdminLogin} selectedProduct={selectedProduct} currentUserData={currentUserData} logoUrl={logoUrl} />
+              <StoreView 
+                products={products} 
+                loading={false} 
+                onAddToCart={handleAddToCart} 
+                cart={cart} 
+                isOrderPreviewOpen={isOrderPreviewOpen} 
+                setIsOrderPreviewOpen={setIsOrderPreviewOpen} 
+                viewingOrder={viewingOrder} 
+                setViewingOrder={setViewingOrder} 
+                handleCheckout={handleCheckout} 
+                removeFromCart={removeFromCart} 
+                orderKarat={orderKarat} 
+                user={user} 
+                setIsAdminOpen={setIsAdminOpen} 
+                setShowLogin={setShowLogin} 
+                setSelectedProduct={setSelectedProduct} 
+                onLogin={handleAdminLogin} 
+                selectedProduct={selectedProduct} 
+                currentUserData={currentUserData} 
+                logoUrl={logoUrl} 
+                // BURASI EKLENDİ (StoreView'a fonksiyonu gönderiyoruz):
+                onOpenCatalogue={handleOpenCatalogue}
+              />
               <ProductModal product={selectedProduct} isOpen={!!selectedProduct} onClose={() => setSelectedProduct(null)} onConfirm={handleAddToCart} currentOrderKarat={orderKarat} />
+              
+              {/* BURASI EKLENDİ (Modal Bileşeni): */}
+              <CatalogueModal 
+                  isOpen={isCatalogueOpen}
+                  onClose={() => setIsCatalogueOpen(false)}
+                  appId={appId}
+                  initialCategory={catalogueParams.category}
+                  initialSubcategory={catalogueParams.subcategory}
+              />
           </div>
           <OrderPreviewModal cart={cart} isOpen={isOrderPreviewOpen && !viewingOrder} onClose={() => setIsOrderPreviewOpen(false)} onRemoveItem={removeFromCart} onCreateOrder={handleCheckout} products={products} initialData={null} draftData={draftData} setDraftData={setDraftData} logoUrl={logoUrl} />
         </div>
