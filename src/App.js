@@ -4,7 +4,8 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, doc, deleteDoc, updateDoc,
   query, serverTimestamp, onSnapshot, writeBatch, orderBy, setDoc, getDoc, where, getDocs,
-  initializeFirestore 
+  initializeFirestore, // <--- BURAYA VİRGÜL EKLENDİ
+  limit                // <--- LİMİT SORUNSUZ EKLENDİ
 } from 'firebase/firestore';
 import { 
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, 
@@ -2316,8 +2317,14 @@ const App = () => {
     useEffect(() => {
         if (!user) return;
         
-        const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { 
+        // --- IPAD TEST İÇİN SADECE 20 ÜRÜN ÇEKİYORUZ ---
+        const productsRef = collection(db, 'artifacts', appId, 'public', 'data', 'products');
+        // limit(20) diyerek sayıyı kısıtlıyoruz
+        const q = query(productsRef, limit(20)); 
+
+        const unsubProducts = onSnapshot(q, (snap) => { 
             try {
+                window.globalErrorLog.push("Firebase Bağlandı! Gelen Ürün Sayısı: " + snap.docs.length);
                 setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); 
             } catch(e) {
                 window.globalErrorLog.push("Ürün Çekme Hatası: " + e.message);
