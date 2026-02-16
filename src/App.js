@@ -9,9 +9,11 @@ import {
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, 
   signInAnonymously, signInWithCustomToken, signOut, updateProfile
 } from 'firebase/auth';
-import {
-  getStorage, ref, uploadBytesResumable, getDownloadURL
-} from 'firebase/storage';
+import { 
+  getFirestore, collection, addDoc, doc, deleteDoc, updateDoc,
+  query, serverTimestamp, onSnapshot, writeBatch, orderBy, setDoc, getDoc, where, getDocs,
+  initializeFirestore // <--- BAK BURAYA EKLEDİM
+} from 'firebase/firestore';
 import { 
   ShoppingBag, Search, Plus, Trash, LogOut,
   X, Star, RefreshCcw, Folder, ChevronDown, Printer, Download, Save, Check, CheckCheck,
@@ -162,7 +164,7 @@ const ORDER_STAGES = {
 };
 
 // ==========================================
-// FIREBASE CONFIG
+// FIREBASE CONFIG (IPAD 2 İÇİN GÜNCELLENDİ)
 // ==========================================
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
   apiKey: "AIzaSyBU8dWUrlVu2PUiysZ44r0USHn-TtfT6R0",
@@ -178,13 +180,24 @@ let app, auth, db, storage;
 try {
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
-  db = getFirestore(app);
+  
+  // IPAD 2 İÇİN ÖZEL BAĞLANTI AYARI
+  // WebSocket yerine Long Polling modunu zorluyoruz
+  try {
+    db = initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+      useFetchStreams: false // Eski Safari için akışları kapatıyoruz
+    });
+  } catch (firestoreError) {
+    db = getFirestore(app);
+  }
+  
   storage = getStorage(app);
 } catch (error) {
   console.error("Firebase Başlatma Hatası:", error);
+  if (window.globalErrorLog) window.globalErrorLog.push("Firebase Başlatma Hatası: " + error.message);
 }
 const appId = typeof __app_id !== 'undefined' ? __app_id : "sahra-kuyum-app";
-
 // ==========================================
 // UTILS
 // ==========================================
