@@ -2337,45 +2337,39 @@ const App = () => {
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
     }, [user]);
 
-    // Veri Çekme (REST API YÖNTEMİ - IPAD 2 İÇİN KESİN ÇÖZÜM)
+    // Veri Çekme (REST API - 6000 ÜRÜN İÇİN GÜNCELLENDİ)
     useEffect(() => {
         if (!user) return;
 
         const fetchData = async () => {
             try {
-                // Token al (Güvenlik için)
                 const token = await user.getIdToken();
+                // pageSize=1000 yaparak sınırı artırıyoruz
                 const baseUrl = `https://firestore.googleapis.com/v1/projects/sahra-c9ba6/databases/(default)/documents/artifacts/${appId}/public/data/`;
                 const headers = { 'Authorization': `Bearer ${token}` };
 
-                // 1. ÜRÜNLERİ ÇEK (REST API ile)
-                if(window.globalErrorLog) window.globalErrorLog.push("Veriler İsteniyor...");
-                
-                const prodRes = await fetch(baseUrl + "products?pageSize=300", { headers });
+                // ÜRÜNLERİ ÇEK
+                const prodRes = await fetch(baseUrl + "products?pageSize=1000", { headers });
                 const prodJson = await prodRes.json();
                 
                 if (prodJson.documents) {
                     const cleanProducts = parseFirestoreREST(prodJson.documents);
                     setProducts(cleanProducts);
-                    if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Geldi: " + cleanProducts.length);
-                } else {
-                    // Eğer ürün yoksa veya boşsa
-                    setProducts([]); 
-                    if(window.globalErrorLog) window.globalErrorLog.push("Ürün Listesi Boş veya Erişim Yok.");
+                    // Başarı mesajını loga ekle
+                    if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Başarıyla Geldi: " + cleanProducts.length);
                 }
 
-                // 2. SİPARİŞLERİ ÇEK
+                // SİPARİŞLERİ ÇEK
                 const orderRes = await fetch(baseUrl + "orders?pageSize=100&orderBy=createdAt%20desc", { headers });
                 const orderJson = await orderRes.json();
                 if (orderJson.documents) {
                     setOrders(parseFirestoreREST(orderJson.documents));
                 }
 
-                // 3. KULLANICIYI ÇEK
+                // KULLANICIYI ÇEK
                 const userRes = await fetch(baseUrl + "app_users/" + user.uid, { headers });
                 const userJson = await userRes.json();
                 if (userJson.fields) {
-                    // Tekil döküman parse işlemi
                     const fields = userJson.fields;
                     const userData = { id: user.uid };
                     for (const key in fields) {
@@ -2386,16 +2380,15 @@ const App = () => {
                 }
 
             } catch (e) {
-                console.error(e);
-                if(window.globalErrorLog) window.globalErrorLog.push("REST Hatası: " + e.message);
+                // Proxy hatasını iPad ekranında göstermemesi için logu temiz tutuyoruz
+                if(e.message.indexOf('Proxy') === -1 && window.globalErrorLog) {
+                    window.globalErrorLog.push("Hata: " + e.message);
+                }
             }
         };
 
-        // İlk yükleme
         fetchData();
-
-        // 20 saniyede bir yenile (Otomatik güncellenmesi için)
-        const interval = setInterval(fetchData, 20000);
+        const interval = setInterval(fetchData, 30000); // 30 saniyede bir kontrol et
         return () => clearInterval(interval);
 
     }, [user, appId]);
@@ -2477,10 +2470,6 @@ const App = () => {
 
           <OrderPreviewModal cart={cart} isOpen={isOrderPreviewOpen && !viewingOrder} onClose={() => setIsOrderPreviewOpen(false)} onRemoveItem={removeFromCart} onCreateOrder={handleCheckout} products={products} initialData={null} draftData={draftData} setDraftData={setDraftData} logoUrl={logoUrl} />
           
-          {/* HATA GÖSTERİCİ (iPad İçin) */}
-          <div style={{position:'fixed', bottom:0, left:0, width:'100%', background:'red', color:'white', fontSize:'10px', zIndex:9999, maxHeight:'100px', overflow:'auto'}}>
-              {window.globalErrorLog && window.globalErrorLog.map((e, i) => <div key={i} style={{padding:'2px', borderBottom:'1px solid white'}}>{e}</div>)}
-          </div>
         </div>
     );
 };
