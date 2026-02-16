@@ -2320,14 +2320,14 @@ const App = () => {
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
     }, [user]);
 
-    // Veri Çekme (Hata Yakalamalı - DÜZELTİLMİŞ)
+    // Veri Çekme (DÜZELTİLMİŞ VE SINIR KALDIRILMIŞ VERSİYON)
     useEffect(() => {
         if (!user) return;
         
-        // 1. ÜRÜNLERİ ÇEK
+        // 1. ÜRÜNLERİ ÇEK (Burada limit komutunu sildik, hepsi gelecek)
         const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { 
             try {
-                if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Yüklendi: " + snap.docs.length);
+                if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Yüklendi. Toplam Adet: " + snap.docs.length);
                 setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); 
             } catch(e) {
                 if(window.globalErrorLog) window.globalErrorLog.push("Ürün Hatası: " + e.message);

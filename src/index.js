@@ -1,7 +1,8 @@
 // =========================================
-// IPAD 2 (iOS 9) İÇİN ZORUNLU POLYFILL-LER
+// IPAD 2 İÇİN ZORUNLU POLYFILL SIRALAMASI
+// (Burası değişirse iPad bozulur)
 // =========================================
-import 'proxy-polyfill'; // <--- YENİ EKLENEN PARÇA (PROXY HATASI İÇİN)
+import 'proxy-polyfill'; // <--- BU EN TEPEDE OLMAZSA PROXY HATASI VERİR
 import 'react-app-polyfill/ie9';
 import 'react-app-polyfill/stable';
 import 'core-js/stable';
@@ -9,9 +10,6 @@ import 'regenerator-runtime/runtime';
 import 'whatwg-fetch';
 import 'abortcontroller-polyfill/dist/abortcontroller-polyfill-only';
 
-// =========================================
-// STANDART REACT KODLARI
-// =========================================
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
