@@ -18,15 +18,36 @@ import {
   ArrowUp, Upload, User, Key, ChevronLeft, ChevronRight, AlertTriangle, Users, Send, Settings, Box, CheckCircle, Calendar, Minus, Pencil, Activity, TrendingUp, CheckSquare, FileText, Wand2,
   Grid, AlignCenter, MousePointer2, Monitor, Paperclip, Menu, Loader2, FileUp, MonitorPlay, Image as ImageIcon
 } from 'lucide-react';
+const FileIcon = FileText;
 
-// ==========================================
-// IPAD 2 / ESKİ SAFARI İÇİN KRİTİK YAMALAR
-// ==========================================
+if (typeof globalThis === 'undefined') {
+  window.globalThis = window;
+}
 
-// 1. Object.entries Yaması
+// 1. requestAnimationFrame Yaması (React render motoru için şart)
+(function() {
+    var lastTime = 0;
+    var vendors = ['ms', 'moz', 'webkit', 'o'];
+    for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
+        window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
+        window.cancelAnimationFrame = window[vendors[x]+'CancelAnimationFrame'] || window[vendors[x]+'CancelRequestAnimationFrame'];
+    }
+    if (!window.requestAnimationFrame)
+        window.requestAnimationFrame = function(callback, element) {
+            var currTime = new Date().getTime();
+            var timeToCall = Math.max(0, 16 - (currTime - lastTime));
+            var id = window.setTimeout(function() { callback(currTime + timeToCall); }, timeToCall);
+            lastTime = currTime + timeToCall;
+            return id;
+        };
+    if (!window.cancelAnimationFrame)
+        window.cancelAnimationFrame = function(id) { clearTimeout(id); };
+}());
+
+// 2. Object.entries Yaması
 if (!Object.entries) {
-  Object.entries = function( obj ){
-    var ownProps = Object.keys( obj ),
+  Object.entries = function(obj){
+    var ownProps = Object.keys(obj),
         i = ownProps.length,
         resArray = new Array(i);
     while (i--)
@@ -35,7 +56,7 @@ if (!Object.entries) {
   };
 }
 
-// 2. Object.values Yaması
+// 3. Object.values Yaması
 if (!Object.values) {
     Object.values = function(obj) {
         return Object.keys(obj).map(function(e) {
@@ -44,13 +65,11 @@ if (!Object.values) {
     };
 }
 
-// 3. Object.assign Yaması (Eğer yoksa)
+// 4. Object.assign Yaması
 if (typeof Object.assign !== 'function') {
   Object.assign = function(target) {
     'use strict';
-    if (target == null) {
-      throw new TypeError('Cannot convert undefined or null to object');
-    }
+    if (target == null) throw new TypeError('Cannot convert undefined or null to object');
     target = Object(target);
     for (var index = 1; index < arguments.length; index++) {
       var source = arguments[index];
@@ -66,29 +85,29 @@ if (typeof Object.assign !== 'function') {
   };
 }
 
-// 4. Fetch Yerine XMLHttpReqest (Eski Safari fetch desteklemez)
+// 5. Fetch Yerine XMLHttpRequest (Resim Blob desteği için)
 const fetchBlobXHR = (url) => {
     return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.responseType = 'blob';
-        xhr.onload = function() {
-            if (this.status === 200) {
-                resolve(this.response);
-            } else {
-                reject(new Error('Image load failed'));
-            }
-        };
-        xhr.onerror = function() {
-            reject(new Error('Network error'));
-        };
-        xhr.send();
+        try {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.responseType = 'blob';
+            xhr.onload = function() {
+                if (this.status === 200) {
+                    resolve(this.response);
+                } else {
+                    reject(new Error('Image load failed: ' + this.status));
+                }
+            };
+            xhr.onerror = function() {
+                reject(new Error('Network error'));
+            };
+            xhr.send();
+        } catch (e) {
+            reject(e);
+        }
     });
 };
-
-// FileIcon alias'ını manuel oluşturuyoruz
-const FileIcon = FileText;
-
 // ==========================================
 // CONSTANTS & HELPERS
 // ==========================================

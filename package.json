@@ -10,6 +10,7 @@
     "firebase": "^12.6.0",
     "lucide-react": "^0.555.0",
     "react": "^19.2.1",
+    "react-app-polyfill": "^3.0.0",
     "react-dom": "^19.2.1",
     "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
@@ -30,12 +31,18 @@
     "production": [
       ">0.2%",
       "not dead",
-      "not op_mini all"
+      "not op_mini all",
+      "ios >= 9",
+      "safari >= 9",
+      "ie 11"
     ],
     "development": [
       "last 1 chrome version",
       "last 1 firefox version",
-      "last 1 safari version"
+      "last 1 safari version",
+      "ios >= 9",
+      "safari >= 9",
+      "ie 11"
     ]
   },
   "devDependencies": {
