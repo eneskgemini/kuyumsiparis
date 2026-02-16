@@ -181,12 +181,11 @@ try {
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
   
-  // IPAD 2 İÇİN ÖZEL BAĞLANTI AYARI
-  // WebSocket yerine Long Polling modunu zorluyoruz
+  // IPAD 2 İÇİN LONG POLLING ZORLAMASI
   try {
     db = initializeFirestore(app, {
       experimentalForceLongPolling: true,
-      useFetchStreams: false // Eski Safari için akışları kapatıyoruz
+      useFetchStreams: false
     });
   } catch (firestoreError) {
     db = getFirestore(app);
@@ -195,8 +194,9 @@ try {
   storage = getStorage(app);
 } catch (error) {
   console.error("Firebase Başlatma Hatası:", error);
-  if (window.globalErrorLog) window.globalErrorLog.push("Firebase Başlatma Hatası: " + error.message);
 }
+  if (window.globalErrorLog) window.globalErrorLog.push("Firebase Başlatma Hatası: " + error.message);
+
 const appId = typeof __app_id !== 'undefined' ? __app_id : "sahra-kuyum-app";
 // ==========================================
 // UTILS
@@ -2430,7 +2430,7 @@ const App = () => {
           <div style={{position:'fixed', bottom:0, left:0, width:'100%', background:'red', color:'white', fontSize:'10px', zIndex:9999, maxHeight:'100px', overflow:'auto'}}>
               {window.globalErrorLog && window.globalErrorLog.map((e, i) => <div key={i} style={{padding:'2px', borderBottom:'1px solid white'}}>{e}</div>)}
           </div>
-
+	<OrderPreviewModal />
         </div>
     );
 }; 
