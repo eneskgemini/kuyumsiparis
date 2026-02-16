@@ -1,11 +1,11 @@
 /* global __firebase_config, __app_id, __initial_auth_token */
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
+// DİKKAT: Sadece bu import bloğu kalmalı (initializeFirestore ve limit EKLİ)
 import { 
   getFirestore, collection, addDoc, doc, deleteDoc, updateDoc,
   query, serverTimestamp, onSnapshot, writeBatch, orderBy, setDoc, getDoc, where, getDocs,
-  initializeFirestore, // <--- BURAYA VİRGÜL EKLENDİ
-  limit                // <--- LİMİT SORUNSUZ EKLENDİ
+  initializeFirestore, limit
 } from 'firebase/firestore';
 import { 
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, 
@@ -21,7 +21,6 @@ import {
   Grid, AlignCenter, MousePointer2, Monitor, Paperclip, Menu, Loader2, FileUp, MonitorPlay, Image as ImageIcon
 } from 'lucide-react';
 
-// EKSİK OLAN TANIMLAMA
 const FileIcon = FileText; 
 
 // ==========================================
@@ -249,8 +248,17 @@ const processFile = (file) => new Promise((resolve, reject) => {
 
 const handleDownload = async (url, filename) => {
     try {
-        // Eski Safari için XHR kullanıyoruz
-        const blob = await fetchBlobXHR(url);
+        // iPad 2 uyumlu indirme yöntemi
+        let blob;
+        // Eğer yukarıda fetchBlobXHR tanımlıysa onu kullan (iPad için)
+        if (typeof fetchBlobXHR === 'function') {
+             blob = await fetchBlobXHR(url);
+        } else {
+             // Değilse standart fetch kullan (PC için)
+             const response = await fetch(url);
+             blob = await response.blob();
+        }
+        
         const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
@@ -265,7 +273,6 @@ const handleDownload = async (url, filename) => {
         window.open(url, '_blank');
     }
 };
-
 // ==========================================
 // SHARED COMPONENTS
 // ==========================================
@@ -2313,40 +2320,36 @@ const App = () => {
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
     }, [user]);
 
-    // Veri Çekme (Hata Yakalamalı)
+    // Veri Çekme (Hata Yakalamalı - DÜZELTİLMİŞ)
     useEffect(() => {
         if (!user) return;
         
-        // LİMİTİ KALDIRDIK - TÜM ÜRÜNLER GELECEK
+        // 1. ÜRÜNLERİ ÇEK
         const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { 
             try {
-                // Ekrana kaç ürün geldiğini yazacak (Örn: 500)
-                window.globalErrorLog.push("Başarılı! Toplam Ürün: " + snap.docs.length);
+                if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Yüklendi: " + snap.docs.length);
                 setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); 
             } catch(e) {
-                window.globalErrorLog.push("Veri İşleme Hatası: " + e.message);
+                if(window.globalErrorLog) window.globalErrorLog.push("Ürün Hatası: " + e.message);
             }
         }, (err) => {
-            window.globalErrorLog.push("Bağlantı Hatası: " + err.message);
-        }); 
-            try {
-                window.globalErrorLog.push("Firebase Bağlandı! Gelen Ürün Sayısı: " + snap.docs.length);
-                setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); 
-            } catch(e) {
-                window.globalErrorLog.push("Ürün Çekme Hatası: " + e.message);
-            }
-        }, (err) => window.globalErrorLog.push("Ürün Firebase Hatası: " + err.message));
+            if(window.globalErrorLog) window.globalErrorLog.push("Ürün Bağlantı Hatası: " + err.message);
+        });
 
+        // 2. SİPARİŞLERİ ÇEK
         const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snap) => { 
             try {
                 setOrders(snap.docs.map(d => ({id:d.id, ...d.data()}))); 
             } catch(e) {
-                 window.globalErrorLog.push("Sipariş Çekme Hatası: " + e.message);
+                 if(window.globalErrorLog) window.globalErrorLog.push("Sipariş Hatası: " + e.message);
             }
         });
 
+        // 3. KULLANICIYI ÇEK
         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
-        const unsubUser = onSnapshot(userRef, (docSnap) => { if (docSnap.exists()) { setCurrentUserData(docSnap.data()); } else { setCurrentUserData({}); } });
+        const unsubUser = onSnapshot(userRef, (docSnap) => { 
+            if (docSnap.exists()) { setCurrentUserData(docSnap.data()); } else { setCurrentUserData({}); } 
+        });
         
         return () => { unsubProducts(); unsubOrders(); unsubUser(); };
     }, [user]);
@@ -2425,14 +2428,15 @@ const App = () => {
                   initialSubcategory={catalogueParams.subcategory}
               />
           </div>
+
           <OrderPreviewModal cart={cart} isOpen={isOrderPreviewOpen && !viewingOrder} onClose={() => setIsOrderPreviewOpen(false)} onRemoveItem={removeFromCart} onCreateOrder={handleCheckout} products={products} initialData={null} draftData={draftData} setDraftData={setDraftData} logoUrl={logoUrl} />
           
-          {/* HATA GÖSTERİCİ KIRMIZI ŞERİT (iPad İçin) */}
+          {/* HATA GÖSTERİCİ (iPad İçin) */}
           <div style={{position:'fixed', bottom:0, left:0, width:'100%', background:'red', color:'white', fontSize:'10px', zIndex:9999, maxHeight:'100px', overflow:'auto'}}>
               {window.globalErrorLog && window.globalErrorLog.map((e, i) => <div key={i} style={{padding:'2px', borderBottom:'1px solid white'}}>{e}</div>)}
           </div>
-	<OrderPreviewModal />
         </div>
     );
-}; 
+};
+
 export default App;
