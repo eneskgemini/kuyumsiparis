@@ -2317,53 +2317,55 @@ const App = () => {
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
     }, [user]);
 
-    // Veri Çekme (IPAD 2 İÇİN GÜVENLİ MOD - KESİN ÇÖZÜM)
+    // Veri Çekme (IPAD 2 İÇİN "GETİR" YÖNTEMİ - KESİN ÇÖZÜM)
     useEffect(() => {
         if (!user) return;
         
-        // 1. ÜRÜNLERİ ÇEK (Spread ... yerine Object.assign kullanıyoruz)
-        const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { 
+        // Verileri çeken fonksiyon
+        const fetchData = async () => {
             try {
-                // iPad ekranının altındaki kırmızı kutuya bilgi yazacak
-                if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Geldi: " + snap.docs.length);
+                // 1. ÜRÜNLERİ ÇEK (getDocs kullanıyoruz, Proxy hatası vermez)
+                const productsRef = collection(db, 'artifacts', appId, 'public', 'data', 'products');
+                const productSnap = await getDocs(productsRef);
                 
-                // ESKİ YÖNTEM: ...d.data() -> BU İPAD 2'DE ÇALIŞMAZ
-                // YENİ YÖNTEM: Object.assign -> BU ÇALIŞIR
-                const safeProducts = snap.docs.map(d => {
-                    var data = d.data();
-                    // Veriyi güvenli şekilde kopyala
-                    return Object.assign({}, data, { id: d.id });
+                const safeProducts = [];
+                productSnap.forEach((doc) => {
+                    // Object.assign ile güvenli kopyalama
+                    safeProducts.push(Object.assign({}, doc.data(), { id: doc.id }));
                 });
                 
-                setProducts(safeProducts); 
-            } catch(e) {
-                if(window.globalErrorLog) window.globalErrorLog.push("Ürün İşleme Hatası: " + e.message);
-            }
-        }, (err) => {
-            if(window.globalErrorLog) window.globalErrorLog.push("Bağlantı Hatası: " + err.message);
-        });
+                setProducts(safeProducts);
+                if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Güncellendi: " + safeProducts.length);
 
-        // 2. SİPARİŞLERİ ÇEK
-        const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snap) => { 
-            try {
-                // Siparişler için de güvenli yöntem
-                const safeOrders = snap.docs.map(d => {
-                    var data = d.data();
-                    return Object.assign({}, data, { id: d.id });
+                // 2. SİPARİŞLERİ ÇEK
+                const ordersRef = query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc'));
+                const orderSnap = await getDocs(ordersRef);
+                
+                const safeOrders = [];
+                orderSnap.forEach((doc) => {
+                    safeOrders.push(Object.assign({}, doc.data(), { id: doc.id }));
                 });
-                setOrders(safeOrders); 
-            } catch(e) {
-                 if(window.globalErrorLog) window.globalErrorLog.push("Sipariş Hatası: " + e.message);
-            }
-        });
+                setOrders(safeOrders);
 
-        // 3. KULLANICI VERİSİNİ ÇEK
-        const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
-        const unsubUser = onSnapshot(userRef, (docSnap) => { 
-            if (docSnap.exists()) { setCurrentUserData(docSnap.data()); } else { setCurrentUserData({}); } 
-        });
-        
-        return () => { unsubProducts(); unsubOrders(); unsubUser(); };
+                // 3. KULLANICIYI ÇEK
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
+                const userSnap = await getDoc(userRef);
+                if (userSnap.exists()) { 
+                    setCurrentUserData(userSnap.data()); 
+                }
+
+            } catch (e) {
+                if(window.globalErrorLog) window.globalErrorLog.push("Veri Hatası: " + e.message);
+            }
+        };
+
+        // İlk açılışta veriyi çek
+        fetchData();
+
+        // Her 15 saniyede bir veriyi yenile (Canlı dinleme yerine)
+        const intervalId = setInterval(fetchData, 15000);
+
+        return () => clearInterval(intervalId);
     }, [user]);
 
     const handleAdminLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); setNotification({type:'success', message:'Giriş başarılı'}); } catch (err) { setNotification({type:'error', message:'Giriş başarısız: ' + err.message}); } };

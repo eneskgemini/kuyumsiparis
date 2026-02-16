@@ -1,5 +1,5 @@
 // =========================================
-// IPAD 2 İÇİN ZORUNLU POLYFILL SIRALAMASI
+// IPAD 2 İÇİN ZORUNLU POLYFILL
 // =========================================
 import 'proxy-polyfill'; 
 import 'react-app-polyfill/ie9';
