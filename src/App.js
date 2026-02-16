@@ -2320,20 +2320,21 @@ const App = () => {
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
     }, [user]);
 
-    // Veri Çekme (DÜZELTİLMİŞ VE SINIR KALDIRILMIŞ VERSİYON)
+    // Veri Çekme (DÜZELTİLMİŞ VE SINIRSIZ)
     useEffect(() => {
         if (!user) return;
         
-        // 1. ÜRÜNLERİ ÇEK (Burada limit komutunu sildik, hepsi gelecek)
+        // 1. ÜRÜNLERİ ÇEK (Limitsiz - Hepsi gelir)
         const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { 
             try {
-                if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Yüklendi. Toplam Adet: " + snap.docs.length);
+                // iPad ekranına kaç ürün geldiğini yazar
+                if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Yüklendi. Toplam: " + snap.docs.length);
                 setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); 
             } catch(e) {
                 if(window.globalErrorLog) window.globalErrorLog.push("Ürün Hatası: " + e.message);
             }
         }, (err) => {
-            if(window.globalErrorLog) window.globalErrorLog.push("Ürün Bağlantı Hatası: " + err.message);
+            if(window.globalErrorLog) window.globalErrorLog.push("Bağlantı Hatası: " + err.message);
         });
 
         // 2. SİPARİŞLERİ ÇEK

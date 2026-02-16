@@ -1,8 +1,7 @@
 // =========================================
 // IPAD 2 İÇİN ZORUNLU POLYFILL SIRALAMASI
-// (Burası değişirse iPad bozulur)
 // =========================================
-import 'proxy-polyfill'; // <--- BU EN TEPEDE OLMAZSA PROXY HATASI VERİR
+import 'proxy-polyfill'; 
 import 'react-app-polyfill/ie9';
 import 'react-app-polyfill/stable';
 import 'core-js/stable';
