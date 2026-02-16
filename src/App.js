@@ -2337,36 +2337,38 @@ const App = () => {
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
     }, [user]);
 
-    // Veri Çekme (REST API - 6000 ÜRÜN İÇİN GÜNCELLENDİ)
+    // Veri Çekme (REST API - TÜM ÜRÜNLERİ GETİREN GÜNCEL KOD)
     useEffect(() => {
         if (!user) return;
 
         const fetchData = async () => {
             try {
                 const token = await user.getIdToken();
-                // pageSize=1000 yaparak sınırı artırıyoruz
+                // 6000 ürün için pageSize limitini 10000 yapıyoruz (Bilgisayar ve Tablet için)
                 const baseUrl = `https://firestore.googleapis.com/v1/projects/sahra-c9ba6/databases/(default)/documents/artifacts/${appId}/public/data/`;
                 const headers = { 'Authorization': `Bearer ${token}` };
 
-                // ÜRÜNLERİ ÇEK
-                const prodRes = await fetch(baseUrl + "products?pageSize=1000", { headers });
+                // Ürünleri Çek
+                const prodRes = await fetch(baseUrl + "products?pageSize=10000", { headers });
                 const prodJson = await prodRes.json();
                 
                 if (prodJson.documents) {
                     const cleanProducts = parseFirestoreREST(prodJson.documents);
                     setProducts(cleanProducts);
-                    // Başarı mesajını loga ekle
-                    if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Başarıyla Geldi: " + cleanProducts.length);
+                    console.log("Ürünler yüklendi:", cleanProducts.length);
+                } else {
+                    console.log("Ürün bulunamadı veya boş geldi.");
+                    setProducts([]);
                 }
 
-                // SİPARİŞLERİ ÇEK
+                // Siparişleri Çek
                 const orderRes = await fetch(baseUrl + "orders?pageSize=100&orderBy=createdAt%20desc", { headers });
                 const orderJson = await orderRes.json();
                 if (orderJson.documents) {
                     setOrders(parseFirestoreREST(orderJson.documents));
                 }
 
-                // KULLANICIYI ÇEK
+                // Kullanıcıyı Çek
                 const userRes = await fetch(baseUrl + "app_users/" + user.uid, { headers });
                 const userJson = await userRes.json();
                 if (userJson.fields) {
@@ -2380,15 +2382,13 @@ const App = () => {
                 }
 
             } catch (e) {
-                // Proxy hatasını iPad ekranında göstermemesi için logu temiz tutuyoruz
-                if(e.message.indexOf('Proxy') === -1 && window.globalErrorLog) {
-                    window.globalErrorLog.push("Hata: " + e.message);
-                }
+                console.error("Veri çekme hatası:", e);
             }
         };
 
         fetchData();
-        const interval = setInterval(fetchData, 30000); // 30 saniyede bir kontrol et
+        // 20 saniyede bir otomatik yenileme
+        const interval = setInterval(fetchData, 20000);
         return () => clearInterval(interval);
 
     }, [user, appId]);
