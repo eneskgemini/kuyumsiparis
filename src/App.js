@@ -349,7 +349,23 @@ const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDel
 
     return (
         <div>
-            <div className="p-2 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+            <div className="p-2 flex flex-wrap -mx-1">
+    {visibleItems.map(product => (
+        <div key={product.id} className="w-1/3 md:w-1/4 lg:w-1/6 p-1 relative box-border">
+            {/* İçerik aynı kalsın, sadece dış sarmalayıcıyı değiştirdik */}
+            <div className={`group relative bg-white border rounded-lg p-2 hover:shadow-lg transition-all ${editingId === product.id ? 'ring-2 ring-blue-500' : 'border-slate-100'}`}>
+                <div className="aspect-square bg-slate-100 rounded-md mb-2 overflow-hidden relative">
+                    <img src={product.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
+                </div>
+                <div className="font-bold text-xs truncate text-slate-800">{product.code}</div>
+                <div className="text-[10px] text-slate-500 font-bold">{product.gram} gr</div>
+                
+                <button onClick={() => startEditing(product)} className="absolute top-1 right-8 bg-blue-500 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-blue-600" title="Düzenle"><Pencil size={12}/></button>
+                <button onClick={() => onDeleteClick(product.id)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600" title="Sil"><Trash size={12}/></button>
+            </div>
+        </div>
+    ))}
+</div>
                 {visibleItems.map(product => (
                     <div key={product.id} className={`group relative bg-white border rounded-lg p-2 hover:shadow-lg transition-all ${editingId === product.id ? 'ring-2 ring-blue-500' : 'border-slate-100'}`}>
                         <div className="aspect-square bg-slate-100 rounded-md mb-2 overflow-hidden relative">
@@ -2187,9 +2203,13 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                 {(activeCategory !== 'Anasayfa' || searchTerm) && (
                     <div className={activeCategory === 'Anasayfa' ? 'animate-in fade-in slide-in-from-bottom-8 duration-500 mt-4' : ''}>
                         <div className="mb-4 flex items-center justify-end"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} /></div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
-                            {paginatedProducts.map(product => (<ProductCard key={product.id} product={product} onAddToCart={setSelectedProduct} logoUrl={logoUrl} />))}
-                        </div>
+                        <div className="flex flex-wrap -mx-2">
+    {paginatedProducts.map(product => (
+        <div key={product.id} className="w-1/2 md:w-1/4 lg:w-1/5 p-2 box-border">
+            <ProductCard product={product} onAddToCart={setSelectedProduct} logoUrl={logoUrl} />
+        </div>
+    ))}
+</div>
                         {paginatedProducts.length === 0 && <div className="text-center py-20 text-slate-400">Ürün bulunamadı.</div>}
                         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                     </div>
