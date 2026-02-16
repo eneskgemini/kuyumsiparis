@@ -18,13 +18,33 @@ import {
   ArrowUp, Upload, User, Key, ChevronLeft, ChevronRight, AlertTriangle, Users, Send, Settings, Box, CheckCircle, Calendar, Minus, Pencil, Activity, TrendingUp, CheckSquare, FileText, Wand2,
   Grid, AlignCenter, MousePointer2, Monitor, Paperclip, Menu, Loader2, FileUp, MonitorPlay, Image as ImageIcon
 } from 'lucide-react';
+
+// Eksik ikon tanımlaması
 const FileIcon = FileText;
 
+// ==========================================
+// IPAD 2 / ESKİ SAFARI İÇİN KRİTİK YAMALAR
+// ==========================================
+
+// Hata mesajını ekrana basmak için global değişken
+window.globalErrorLog = [];
+window.onerror = function (msg, url, lineNo, columnNo, error) {
+  var message = [
+    'Mesaj: ' + msg,
+    'Satır: ' + lineNo,
+    'Sütun: ' + columnNo,
+    'Hata Nesnesi: ' + JSON.stringify(error)
+  ].join(' - ');
+  window.globalErrorLog.push(message);
+  return false;
+};
+
+// 0. globalThis Yaması
 if (typeof globalThis === 'undefined') {
   window.globalThis = window;
 }
 
-// 1. requestAnimationFrame Yaması (React render motoru için şart)
+// 1. requestAnimationFrame Yaması
 (function() {
     var lastTime = 0;
     var vendors = ['ms', 'moz', 'webkit', 'o'];
@@ -46,8 +66,8 @@ if (typeof globalThis === 'undefined') {
 
 // 2. Object.entries Yaması
 if (!Object.entries) {
-  Object.entries = function(obj){
-    var ownProps = Object.keys(obj),
+  Object.entries = function( obj ){
+    var ownProps = Object.keys( obj ),
         i = ownProps.length,
         resArray = new Array(i);
     while (i--)
@@ -85,7 +105,7 @@ if (typeof Object.assign !== 'function') {
   };
 }
 
-// 5. Fetch Yerine XMLHttpRequest (Resim Blob desteği için)
+// 5. Fetch Yerine XMLHttpReqest (Eski Safari fetch desteklemez)
 const fetchBlobXHR = (url) => {
     return new Promise((resolve, reject) => {
         try {
@@ -103,13 +123,12 @@ const fetchBlobXHR = (url) => {
                 reject(new Error('Network error'));
             };
             xhr.send();
-        } catch (e) {
-            reject(e);
-        }
+        } catch(e) { reject(e); }
     });
 };
+
 // ==========================================
-// CONSTANTS & HELPERS
+// CONSTANTS & HELPERS...
 // ==========================================
 const DEFAULT_LOGO_URL = "https://i.hizliresim.com/6pdu20m.png"; 
 const DEFAULT_FRAME_URL = "https://i.hizliresim.com/pq4m3mg.png";
@@ -2226,15 +2245,10 @@ const App = () => {
     const [isCatalogueOpen, setIsCatalogueOpen] = useState(false);
     const [catalogueParams, setCatalogueParams] = useState({ category: 'Anasayfa', subcategory: 'Hepsi' });
 
-    // ==========================================
-    // LOGO GÜNCELLEME (IPHONE & FAVICON & BAŞLIK)
-    // ==========================================
+    // Logo ve Başlık Güncelleme
     useEffect(() => {
         document.title = "Sahra Kuyumculuk"; 
-
         const targetLogo = logoUrl || DEFAULT_LOGO_URL;
-
-        // 1. Apple Touch Icon
         let appleIcon = document.querySelector("link[rel~='apple-touch-icon']");
         if (!appleIcon) {
             appleIcon = document.createElement('link');
@@ -2242,8 +2256,6 @@ const App = () => {
             document.getElementsByTagName('head')[0].appendChild(appleIcon);
         }
         appleIcon.href = targetLogo;
-
-        // 2. Standart Favicon
         let favicon = document.querySelector("link[rel~='icon']");
         if (!favicon) {
             favicon = document.createElement('link');
@@ -2251,9 +2263,9 @@ const App = () => {
             document.getElementsByTagName('head')[0].appendChild(favicon);
         }
         favicon.href = targetLogo;
-
     }, [logoUrl]);
 
+    // Auth Başlatma
     useEffect(() => {
         const initAuth = async () => { 
             try {
@@ -2262,6 +2274,7 @@ const App = () => {
                 } 
             } catch (error) {
                 console.error("Auth initialization failed:", error);
+                window.globalErrorLog.push("Auth Init Hatası: " + error.message);
             }
         };
         initAuth();
@@ -2269,33 +2282,51 @@ const App = () => {
             setUser(u);
             if(u) {
                 setShowLogin(false);
-                try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'app_users', u.uid), { uid: u.uid, email: u.email, displayName: u.displayName || (u.email ? u.email.split('@')[0] : 'Misafir'), photoURL: u.photoURL, lastLogin: serverTimestamp() }, { merge: true }); } catch (err) { console.error("Kullanıcı senkronizasyon hatası:", err); }
+                try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'app_users', u.uid), { uid: u.uid, email: u.email, displayName: u.displayName || (u.email ? u.email.split('@')[0] : 'Misafir'), photoURL: u.photoURL, lastLogin: serverTimestamp() }, { merge: true }); } catch (err) { console.error(err); }
             } else { setShowLogin(true); }
         });
         return () => unsubscribe();
     }, []);
 
+    // Online Durumu
     useEffect(() => {
         if (!user) return;
         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
-        const setOnline = async () => { try { await updateDoc(userRef, { isOnline: true, lastLogin: serverTimestamp() }); } catch(e) { console.error("Online status err:", e); } };
+        const setOnline = async () => { try { await updateDoc(userRef, { isOnline: true, lastLogin: serverTimestamp() }); } catch(e) {} };
         setOnline();
         const interval = setInterval(async () => { try { await updateDoc(userRef, { isOnline: true, lastLogin: serverTimestamp() }); } catch(e) { } }, 2 * 60 * 1000); 
         const handleTabClose = async () => { try { updateDoc(userRef, { isOnline: false }); } catch (e) { } };
         window.addEventListener('beforeunload', handleTabClose);
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
-    }, [user, appId]);
+    }, [user]);
 
+    // Veri Çekme (Hata Yakalamalı)
     useEffect(() => {
         if (!user) return;
-        const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); });
-        const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snap) => { setOrders(snap.docs.map(d => ({id:d.id, ...d.data()}))); });
+        
+        const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { 
+            try {
+                setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); 
+            } catch(e) {
+                window.globalErrorLog.push("Ürün Çekme Hatası: " + e.message);
+            }
+        }, (err) => window.globalErrorLog.push("Ürün Firebase Hatası: " + err.message));
+
+        const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snap) => { 
+            try {
+                setOrders(snap.docs.map(d => ({id:d.id, ...d.data()}))); 
+            } catch(e) {
+                 window.globalErrorLog.push("Sipariş Çekme Hatası: " + e.message);
+            }
+        });
+
         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
         const unsubUser = onSnapshot(userRef, (docSnap) => { if (docSnap.exists()) { setCurrentUserData(docSnap.data()); } else { setCurrentUserData({}); } });
+        
         return () => { unsubProducts(); unsubOrders(); unsubUser(); };
-    }, [user, appId]);
+    }, [user]);
 
-    const handleAdminLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); setNotification({type:'success', message:'Giriş başarılı'}); } catch (err) { setNotification({type:'error', message:'Giriş başarısız'}); } };
+    const handleAdminLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); setNotification({type:'success', message:'Giriş başarılı'}); } catch (err) { setNotification({type:'error', message:'Giriş başarısız: ' + err.message}); } };
     const handleUpdateLogo = async (newLogoBase64) => { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'general'), { logoUrl: newLogoBase64, updatedAt: serverTimestamp() }, { merge: true }); };
     const handleAddToCart = useCallback((product) => { setCart(prev => [...prev, { ...product, cartId: Date.now() }]); setNotification({ type: 'success', message: `${product.code} sepete eklendi` }); if(cart.length === 0) setOrderKarat(product.selectedKarat); }, [cart.length]);
     const removeFromCart = useCallback((cartId) => { setCart(prev => { const newCart = prev.filter(item => item.cartId !== cartId); if(newCart.length === 0) setOrderKarat(null); return newCart; }); }, []);
@@ -2309,12 +2340,12 @@ const App = () => {
             if (targetStatus !== 'draft') { setOrderKarat(null); setDraftData({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] }); } 
             setIsOrderPreviewOpen(false); setNotification({ type: 'success', message: targetStatus === 'draft' ? "Taslak kaydedildi!" : "Sipariş oluşturuldu!" }); 
         } catch (error) { setNotification({ type: 'error', message: "Hata: " + error.message }); } 
-    }, [cart, user, appId]);
+    }, [cart, user]);
     
-    const handleUpdateOrder = useCallback(async (orderId, data) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), data); setIsOrderPreviewOpen(false); setViewingOrder(null); setNotification({type:'success', message:'Sipariş güncellendi'}); } catch (error) { setNotification({type:'error', message: error.message}); } }, [appId]);
-    const handleDeleteProduct = useCallback(async (id) => { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id)); setNotification({type:'success', message:'Ürün silindi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, [appId]);
-    const handleUpdateStatus = useCallback(async (orderId, status) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { status }); setNotification({type:'success', message:'Durum güncellendi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, [appId]);
-    const handleDeleteOrder = useCallback(async (orderId) => { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId)); setNotification({type:'success', message:'Sipariş silindi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, [appId]);
+    const handleUpdateOrder = useCallback(async (orderId, data) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), data); setIsOrderPreviewOpen(false); setViewingOrder(null); setNotification({type:'success', message:'Sipariş güncellendi'}); } catch (error) { setNotification({type:'error', message: error.message}); } }, []);
+    const handleDeleteProduct = useCallback(async (id) => { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id)); setNotification({type:'success', message:'Ürün silindi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, []);
+    const handleUpdateStatus = useCallback(async (orderId, status) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { status }); setNotification({type:'success', message:'Durum güncellendi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, []);
+    const handleDeleteOrder = useCallback(async (orderId) => { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId)); setNotification({type:'success', message:'Sipariş silindi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, []);
 
     const handleOpenCatalogue = (category, subcategory) => {
         setCatalogueParams({ category, subcategory });
@@ -2369,6 +2400,11 @@ const App = () => {
               />
           </div>
           <OrderPreviewModal cart={cart} isOpen={isOrderPreviewOpen && !viewingOrder} onClose={() => setIsOrderPreviewOpen(false)} onRemoveItem={removeFromCart} onCreateOrder={handleCheckout} products={products} initialData={null} draftData={draftData} setDraftData={setDraftData} logoUrl={logoUrl} />
+          
+          {/* HATA GÖSTERİCİ PANEL - Sadece hata varsa iPad'de görünür */}
+          <div style={{position:'fixed', bottom:0, left:0, width:'100%', background:'red', color:'white', fontSize:'10px', zIndex:9999, maxHeight:'100px', overflow:'auto'}}>
+              {window.globalErrorLog && window.globalErrorLog.map((e, i) => <div key={i} style={{padding:'2px', borderBottom:'1px solid white'}}>{e}</div>)}
+          </div>
         </div>
     );
 };
