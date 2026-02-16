@@ -2317,12 +2317,18 @@ const App = () => {
     useEffect(() => {
         if (!user) return;
         
-        // --- IPAD TEST İÇİN SADECE 20 ÜRÜN ÇEKİYORUZ ---
-        const productsRef = collection(db, 'artifacts', appId, 'public', 'data', 'products');
-        // limit(20) diyerek sayıyı kısıtlıyoruz
-        const q = query(productsRef, limit(20)); 
-
-        const unsubProducts = onSnapshot(q, (snap) => { 
+        // LİMİTİ KALDIRDIK - TÜM ÜRÜNLER GELECEK
+        const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { 
+            try {
+                // Ekrana kaç ürün geldiğini yazacak (Örn: 500)
+                window.globalErrorLog.push("Başarılı! Toplam Ürün: " + snap.docs.length);
+                setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); 
+            } catch(e) {
+                window.globalErrorLog.push("Veri İşleme Hatası: " + e.message);
+            }
+        }, (err) => {
+            window.globalErrorLog.push("Bağlantı Hatası: " + err.message);
+        }); 
             try {
                 window.globalErrorLog.push("Firebase Bağlandı! Gelen Ürün Sayısı: " + snap.docs.length);
                 setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); 

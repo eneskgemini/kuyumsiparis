@@ -11,6 +11,7 @@
     "core-js": "^3.48.0",
     "firebase": "^12.6.0",
     "lucide-react": "^0.555.0",
+    "proxy-polyfill": "^0.3.2",
     "react": "^19.2.1",
     "react-app-polyfill": "^3.0.0",
     "react-dom": "^19.2.1",

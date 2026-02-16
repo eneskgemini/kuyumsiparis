@@ -1,6 +1,7 @@
 // =========================================
 // IPAD 2 (iOS 9) İÇİN ZORUNLU POLYFILL-LER
 // =========================================
+import 'proxy-polyfill'; // <--- YENİ EKLENEN PARÇA (PROXY HATASI İÇİN)
 import 'react-app-polyfill/ie9';
 import 'react-app-polyfill/stable';
 import 'core-js/stable';
