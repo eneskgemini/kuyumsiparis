@@ -151,7 +151,7 @@ const ORDER_STAGES = {
 };
 
 // ==========================================
-// FIREBASE CONFIG (IPAD 2 İÇİN GÜNCELLENDİ)
+// FIREBASE CONFIG (IPAD 2 İÇİN SADELEŞTİRİLMİŞ)
 // ==========================================
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
   apiKey: "AIzaSyBU8dWUrlVu2PUiysZ44r0USHn-TtfT6R0",
@@ -168,11 +168,10 @@ try {
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
   
-  // IPAD 2 İÇİN LONG POLLING ZORLAMASI
+  // IPAD 2 İÇİN SADECE BU AYAR KALACAK
   try {
     db = initializeFirestore(app, {
-      experimentalForceLongPolling: true,
-      useFetchStreams: false
+      experimentalForceLongPolling: true
     });
   } catch (firestoreError) {
     db = getFirestore(app);
@@ -181,8 +180,6 @@ try {
   storage = getStorage(app);
 } catch (error) {
   console.error("Firebase Başlatma Hatası:", error);
-  // DÜZELTME BURADA: Bu satırı catch bloğunun İÇİNE aldık
-  if (window.globalErrorLog) window.globalErrorLog.push("Firebase Başlatma Hatası: " + error.message);
 }
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : "sahra-kuyum-app";
@@ -2320,27 +2317,36 @@ const App = () => {
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
     }, [user]);
 
-    // Veri Çekme (DÜZELTİLMİŞ VE SINIRSIZ)
+    // Veri Çekme (IPAD 2 İÇİN GÜVENLİ MOD - PROXY HATASI GİDERİLDİ)
     useEffect(() => {
         if (!user) return;
         
-        // 1. ÜRÜNLERİ ÇEK (Limitsiz - Hepsi gelir)
+        // 1. ÜRÜNLERİ ÇEK (Spread Operator yerine Object.assign kullanıyoruz)
         const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { 
             try {
-                // iPad ekranına kaç ürün geldiğini yazar
-                if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Yüklendi. Toplam: " + snap.docs.length);
-                setProducts(snap.docs.map(d => ({id:d.id, ...d.data()}))); 
+                if(window.globalErrorLog) window.globalErrorLog.push("Ürünler: " + snap.docs.length);
+                
+                // HATA ÇÖZÜMÜ BURADA: "...d.data()" yerine güvenli yöntem:
+                const safeProducts = snap.docs.map(d => {
+                    return Object.assign({}, d.data(), { id: d.id });
+                });
+                
+                setProducts(safeProducts); 
             } catch(e) {
                 if(window.globalErrorLog) window.globalErrorLog.push("Ürün Hatası: " + e.message);
             }
         }, (err) => {
-            if(window.globalErrorLog) window.globalErrorLog.push("Bağlantı Hatası: " + err.message);
+            if(window.globalErrorLog) window.globalErrorLog.push("Bağlantı: " + err.message);
         });
 
         // 2. SİPARİŞLERİ ÇEK
         const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snap) => { 
             try {
-                setOrders(snap.docs.map(d => ({id:d.id, ...d.data()}))); 
+                // HATA ÇÖZÜMÜ: Siparişlerde de aynısını yapıyoruz
+                const safeOrders = snap.docs.map(d => {
+                    return Object.assign({}, d.data(), { id: d.id });
+                });
+                setOrders(safeOrders); 
             } catch(e) {
                  if(window.globalErrorLog) window.globalErrorLog.push("Sipariş Hatası: " + e.message);
             }
