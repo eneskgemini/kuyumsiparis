@@ -1,7 +1,7 @@
 /* global __firebase_config, __app_id, __initial_auth_token */
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-// DİKKAT: Sadece bu import bloğu kalmalı (initializeFirestore ve limit EKLİ)
+// DİKKAT: Sadece bu import bloğu kalmalı
 import { 
   getFirestore, collection, addDoc, doc, deleteDoc, updateDoc,
   query, serverTimestamp, onSnapshot, writeBatch, orderBy, setDoc, getDoc, where, getDocs,
@@ -22,6 +22,26 @@ import {
 } from 'lucide-react';
 
 const FileIcon = FileText; 
+
+// ==========================================
+// IPAD 2 İÇİN REST API YARDIMCISI (EKSİK OLAN BU)
+// ==========================================
+const parseFirestoreREST = (documents) => {
+    if (!documents) return [];
+    return documents.map(doc => {
+        const fields = doc.fields;
+        const data = { id: doc.name.split('/').pop() };
+        for (const key in fields) {
+            const val = fields[key];
+            if (val.stringValue !== undefined) data[key] = val.stringValue;
+            else if (val.integerValue !== undefined) data[key] = parseInt(val.integerValue);
+            else if (val.doubleValue !== undefined) data[key] = parseFloat(val.doubleValue);
+            else if (val.booleanValue !== undefined) data[key] = val.booleanValue;
+            else if (val.timestampValue !== undefined) data[key] = val.timestampValue;
+        }
+        return data;
+    });
+};
 
 // ==========================================
 // IPAD 2 / ESKİ SAFARI İÇİN KRİTİK YAMALAR
@@ -2317,56 +2337,68 @@ const App = () => {
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
     }, [user]);
 
-    // Veri Çekme (IPAD 2 İÇİN "GETİR" YÖNTEMİ - KESİN ÇÖZÜM)
+    // Veri Çekme (REST API YÖNTEMİ - IPAD 2 İÇİN KESİN ÇÖZÜM)
     useEffect(() => {
         if (!user) return;
-        
-        // Verileri çeken fonksiyon
+
         const fetchData = async () => {
             try {
-                // 1. ÜRÜNLERİ ÇEK (getDocs kullanıyoruz, Proxy hatası vermez)
-                const productsRef = collection(db, 'artifacts', appId, 'public', 'data', 'products');
-                const productSnap = await getDocs(productsRef);
+                // Token al (Güvenlik için)
+                const token = await user.getIdToken();
+                const baseUrl = `https://firestore.googleapis.com/v1/projects/sahra-c9ba6/databases/(default)/documents/artifacts/${appId}/public/data/`;
+                const headers = { 'Authorization': `Bearer ${token}` };
+
+                // 1. ÜRÜNLERİ ÇEK (REST API ile)
+                if(window.globalErrorLog) window.globalErrorLog.push("Veriler İsteniyor...");
                 
-                const safeProducts = [];
-                productSnap.forEach((doc) => {
-                    // Object.assign ile güvenli kopyalama
-                    safeProducts.push(Object.assign({}, doc.data(), { id: doc.id }));
-                });
+                const prodRes = await fetch(baseUrl + "products?pageSize=300", { headers });
+                const prodJson = await prodRes.json();
                 
-                setProducts(safeProducts);
-                if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Güncellendi: " + safeProducts.length);
+                if (prodJson.documents) {
+                    const cleanProducts = parseFirestoreREST(prodJson.documents);
+                    setProducts(cleanProducts);
+                    if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Geldi: " + cleanProducts.length);
+                } else {
+                    // Eğer ürün yoksa veya boşsa
+                    setProducts([]); 
+                    if(window.globalErrorLog) window.globalErrorLog.push("Ürün Listesi Boş veya Erişim Yok.");
+                }
 
                 // 2. SİPARİŞLERİ ÇEK
-                const ordersRef = query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc'));
-                const orderSnap = await getDocs(ordersRef);
-                
-                const safeOrders = [];
-                orderSnap.forEach((doc) => {
-                    safeOrders.push(Object.assign({}, doc.data(), { id: doc.id }));
-                });
-                setOrders(safeOrders);
+                const orderRes = await fetch(baseUrl + "orders?pageSize=100&orderBy=createdAt%20desc", { headers });
+                const orderJson = await orderRes.json();
+                if (orderJson.documents) {
+                    setOrders(parseFirestoreREST(orderJson.documents));
+                }
 
                 // 3. KULLANICIYI ÇEK
-                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
-                const userSnap = await getDoc(userRef);
-                if (userSnap.exists()) { 
-                    setCurrentUserData(userSnap.data()); 
+                const userRes = await fetch(baseUrl + "app_users/" + user.uid, { headers });
+                const userJson = await userRes.json();
+                if (userJson.fields) {
+                    // Tekil döküman parse işlemi
+                    const fields = userJson.fields;
+                    const userData = { id: user.uid };
+                    for (const key in fields) {
+                        const val = fields[key];
+                        if (val.stringValue) userData[key] = val.stringValue;
+                    }
+                    setCurrentUserData(userData);
                 }
 
             } catch (e) {
-                if(window.globalErrorLog) window.globalErrorLog.push("Veri Hatası: " + e.message);
+                console.error(e);
+                if(window.globalErrorLog) window.globalErrorLog.push("REST Hatası: " + e.message);
             }
         };
 
-        // İlk açılışta veriyi çek
+        // İlk yükleme
         fetchData();
 
-        // Her 15 saniyede bir veriyi yenile (Canlı dinleme yerine)
-        const intervalId = setInterval(fetchData, 15000);
+        // 20 saniyede bir yenile (Otomatik güncellenmesi için)
+        const interval = setInterval(fetchData, 20000);
+        return () => clearInterval(interval);
 
-        return () => clearInterval(intervalId);
-    }, [user]);
+    }, [user, appId]);
 
     const handleAdminLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); setNotification({type:'success', message:'Giriş başarılı'}); } catch (err) { setNotification({type:'error', message:'Giriş başarısız: ' + err.message}); } };
     const handleUpdateLogo = async (newLogoBase64) => { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'general'), { logoUrl: newLogoBase64, updatedAt: serverTimestamp() }, { merge: true }); };

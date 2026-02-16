@@ -1,7 +1,4 @@
-// =========================================
-// IPAD 2 İÇİN ZORUNLU POLYFILL
-// =========================================
-import 'proxy-polyfill'; 
+import 'proxy-polyfill';
 import 'react-app-polyfill/ie9';
 import 'react-app-polyfill/stable';
 import 'core-js/stable';
@@ -15,6 +12,4 @@ import './index.css';
 import App from './App';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-    <App />
-);
+root.render(<App />);
