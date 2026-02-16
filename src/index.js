@@ -1,6 +1,7 @@
 import 'react-app-polyfill/ie9';
 import 'react-app-polyfill/stable';
-import 'whatwg-fetch';
+import 'whatwg-fetch'; // <--- BU SATIR ÇOK ÖNEMLİ, IPAD VERİ ÇEKSİN DİYE
+import React from 'react';
 import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
