@@ -121,10 +121,6 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 let width = img.width;
                 let height = img.height;
                 
-<<<<<<< HEAD
-=======
-                // ESKİSİ 1200 İDİ, BUNU 2000 YAPIYORUZ (DAHA NET GÖRÜNTÜ İÇİN)
->>>>>>> a72a2a1c3c118968cebc2cd3527f266ced648008
                 const MAX_SIZE = 2000; 
                 
                 if (width > MAX_SIZE || height > MAX_SIZE) {
@@ -137,18 +133,10 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 const ctx = canvas.getContext('2d');
                 ctx.fillStyle = "#FFFFFF";
                 ctx.fillRect(0, 0, width, height);
-<<<<<<< HEAD
-=======
-                // Görüntü yumuşatma kalitesini artır
->>>>>>> a72a2a1c3c118968cebc2cd3527f266ced648008
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(img, 0, 0, width, height);
                 
-<<<<<<< HEAD
-=======
-                // KALİTEYİ 0.8 YERİNE 0.95 YAPIYORUZ
->>>>>>> a72a2a1c3c118968cebc2cd3527f266ced648008
                 let quality = 0.95; 
                 let dataUrl = canvas.toDataURL('image/jpeg', quality);
                 
@@ -2025,11 +2013,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
             </div>
             
             {/* Admin Panel Link */}
-<<<<<<< HEAD
             {currentUserData && currentUserData.role === 'admin' && (
-=======
-            {currentUserData?.role === 'admin' && (
->>>>>>> a72a2a1c3c118968cebc2cd3527f266ced648008
                 <div className="p-4 border-t border-slate-800 bg-slate-950">
                     <button onClick={() => setIsAdminOpen(true)} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-bold transition-colors">
                         <Settings size={16}/> Yönetim Paneli
@@ -2083,11 +2067,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                 <div className="flex items-center gap-2 md:gap-4">
                     <button onClick={() => { if (cart.length > 0) { setIsOrderPreviewOpen(true); } else { setShowEmptyCartModal(true); } }} className="relative p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors group"><ShoppingBag size={20} className="text-slate-600 group-hover:text-slate-900"/>{cart.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full ring-2 ring-white">{cart.length}</span>}</button>
                     <div className="relative">
-<<<<<<< HEAD
                         <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-3 pl-2 md:pl-4 border-l outline-none"><div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs overflow-hidden border border-slate-200">{user && user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : (user && user.email && user.email[0].toUpperCase())}</div></button>
-=======
-                        <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-3 pl-2 md:pl-4 border-l outline-none"><div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs overflow-hidden border border-slate-200">{user?.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : user?.email?.[0]?.toUpperCase()}</div></button>
->>>>>>> a72a2a1c3c118968cebc2cd3527f266ced648008
                         {isUserMenuOpen && (<><div className="fixed inset-0 z-10" onClick={() => setIsUserMenuOpen(false)}></div><div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-20 overflow-hidden"><button onClick={() => { setIsAccountModalOpen(true); setIsUserMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 flex items-center gap-2"><User size={16}/> Hesap</button><button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"><LogOut size={16}/> Çıkış Yap</button></div></>)}
                     </div>
                 </div>
