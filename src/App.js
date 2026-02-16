@@ -19,8 +19,19 @@ import {
   Grid, AlignCenter, MousePointer2, Monitor, Paperclip, Menu, Loader2, FileUp, MonitorPlay, Image as ImageIcon
 } from 'lucide-react';
 
-// Eksik ikon tanımlaması
-const FileIcon = FileText;
+// ... importlar biter ...
+
+// BU SATIRI MUTLAKA EKLE:
+const FileIcon = FileText; 
+
+// IPAD HATA YAKALAYICI (Bunu da hemen altına ekle)
+window.globalErrorLog = [];
+window.onerror = function (msg, url, lineNo, columnNo, error) {
+  window.globalErrorLog.push(msg + ' (Satır: ' + lineNo + ')');
+  return false;
+};
+
+// ... kod devam eder ...
 
 // ==========================================
 // IPAD 2 / ESKİ SAFARI İÇİN KRİTİK YAMALAR
@@ -2366,6 +2377,7 @@ const App = () => {
         <div className="min-h-screen bg-slate-50 font-sans pb-20 md:pb-0">
           <PrintStyles />
           {notification && <CustomNotification type={notification.type} message={notification.message} onClose={()=>setNotification(null)} />}
+          
           <div className="screen-only">
               <StoreView 
                 products={products} 
@@ -2401,12 +2413,12 @@ const App = () => {
           </div>
           <OrderPreviewModal cart={cart} isOpen={isOrderPreviewOpen && !viewingOrder} onClose={() => setIsOrderPreviewOpen(false)} onRemoveItem={removeFromCart} onCreateOrder={handleCheckout} products={products} initialData={null} draftData={draftData} setDraftData={setDraftData} logoUrl={logoUrl} />
           
-          {/* HATA GÖSTERİCİ PANEL - Sadece hata varsa iPad'de görünür */}
+          {/* HATA GÖSTERİCİ KIRMIZI ŞERİT (iPad İçin) */}
           <div style={{position:'fixed', bottom:0, left:0, width:'100%', background:'red', color:'white', fontSize:'10px', zIndex:9999, maxHeight:'100px', overflow:'auto'}}>
               {window.globalErrorLog && window.globalErrorLog.map((e, i) => <div key={i} style={{padding:'2px', borderBottom:'1px solid white'}}>{e}</div>)}
           </div>
+
         </div>
     );
-};
-
+}; 
 export default App;

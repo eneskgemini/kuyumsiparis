@@ -6,7 +6,7 @@ import 'regenerator-runtime/runtime';
 import 'react-app-polyfill/ie9';
 import 'react-app-polyfill/stable';
 import 'whatwg-fetch';
-
+import 'abortcontroller-polyfill/dist/abortcontroller-polyfill-only'; 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
