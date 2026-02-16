@@ -2317,34 +2317,39 @@ const App = () => {
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
     }, [user]);
 
-    // Veri Çekme (IPAD 2 İÇİN GÜVENLİ MOD - PROXY HATASI GİDERİLDİ)
+    // Veri Çekme (IPAD 2 İÇİN GÜVENLİ MOD - KESİN ÇÖZÜM)
     useEffect(() => {
         if (!user) return;
         
-        // 1. ÜRÜNLERİ ÇEK (Spread Operator yerine Object.assign kullanıyoruz)
+        // 1. ÜRÜNLERİ ÇEK (Spread ... yerine Object.assign kullanıyoruz)
         const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { 
             try {
-                if(window.globalErrorLog) window.globalErrorLog.push("Ürünler: " + snap.docs.length);
+                // iPad ekranının altındaki kırmızı kutuya bilgi yazacak
+                if(window.globalErrorLog) window.globalErrorLog.push("Ürünler Geldi: " + snap.docs.length);
                 
-                // HATA ÇÖZÜMÜ BURADA: "...d.data()" yerine güvenli yöntem:
+                // ESKİ YÖNTEM: ...d.data() -> BU İPAD 2'DE ÇALIŞMAZ
+                // YENİ YÖNTEM: Object.assign -> BU ÇALIŞIR
                 const safeProducts = snap.docs.map(d => {
-                    return Object.assign({}, d.data(), { id: d.id });
+                    var data = d.data();
+                    // Veriyi güvenli şekilde kopyala
+                    return Object.assign({}, data, { id: d.id });
                 });
                 
                 setProducts(safeProducts); 
             } catch(e) {
-                if(window.globalErrorLog) window.globalErrorLog.push("Ürün Hatası: " + e.message);
+                if(window.globalErrorLog) window.globalErrorLog.push("Ürün İşleme Hatası: " + e.message);
             }
         }, (err) => {
-            if(window.globalErrorLog) window.globalErrorLog.push("Bağlantı: " + err.message);
+            if(window.globalErrorLog) window.globalErrorLog.push("Bağlantı Hatası: " + err.message);
         });
 
         // 2. SİPARİŞLERİ ÇEK
         const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snap) => { 
             try {
-                // HATA ÇÖZÜMÜ: Siparişlerde de aynısını yapıyoruz
+                // Siparişler için de güvenli yöntem
                 const safeOrders = snap.docs.map(d => {
-                    return Object.assign({}, d.data(), { id: d.id });
+                    var data = d.data();
+                    return Object.assign({}, data, { id: d.id });
                 });
                 setOrders(safeOrders); 
             } catch(e) {
@@ -2352,7 +2357,7 @@ const App = () => {
             }
         });
 
-        // 3. KULLANICIYI ÇEK
+        // 3. KULLANICI VERİSİNİ ÇEK
         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
         const unsubUser = onSnapshot(userRef, (docSnap) => { 
             if (docSnap.exists()) { setCurrentUserData(docSnap.data()); } else { setCurrentUserData({}); } 
