@@ -1,11 +1,9 @@
 import 'react-app-polyfill/ie9';
 import 'react-app-polyfill/stable';
-import 'whatwg-fetch'; // <--- BU SATIR ÇOK ÖNEMLİ, IPAD VERİ ÇEKSİN DİYE
-import React from 'react';
-import './index.css';
+import 'whatwg-fetch'; 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css'; // CSS dosyasını buradan çağırıyoruz
+import './index.css';
 import App from './App';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

@@ -349,13 +349,13 @@ const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDel
 
     return (
         <div>
-            {/* GRID YERİNE FLEX YAPISI - IPAD 2 UYUMLU */}
+            {/* IPAD 2 UYUMLU FLEX YAPISI */}
             <div className="p-2 flex flex-wrap -mx-1">
                 {visibleItems.map(product => (
                     <div key={product.id} className="w-1/3 md:w-1/4 lg:w-1/6 p-1 relative box-border">
                         <div className={`group relative bg-white border rounded-lg p-2 hover:shadow-lg transition-all ${editingId === product.id ? 'ring-2 ring-blue-500' : 'border-slate-100'}`}>
                             <div className="aspect-square bg-slate-100 rounded-md mb-2 overflow-hidden relative">
-                                <img src={product.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
+                                <img src={product.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" alt={product.code} />
                             </div>
                             <div className="font-bold text-xs truncate text-slate-800">{product.code}</div>
                             <div className="text-[10px] text-slate-500 font-bold">{product.gram} gr</div>
