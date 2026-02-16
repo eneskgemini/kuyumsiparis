@@ -3,17 +3,16 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffe
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, doc, deleteDoc, updateDoc,
-  query, serverTimestamp, onSnapshot, writeBatch, orderBy, setDoc, getDoc, where, getDocs 
+  query, serverTimestamp, onSnapshot, writeBatch, orderBy, setDoc, getDoc, where, getDocs,
+  initializeFirestore 
 } from 'firebase/firestore';
 import { 
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, 
   signInAnonymously, signInWithCustomToken, signOut, updateProfile
 } from 'firebase/auth';
-import { 
-  getFirestore, collection, addDoc, doc, deleteDoc, updateDoc,
-  query, serverTimestamp, onSnapshot, writeBatch, orderBy, setDoc, getDoc, where, getDocs,
-  initializeFirestore // <--- BAK BURAYA EKLEDİM
-} from 'firebase/firestore';
+import {
+  getStorage, ref, uploadBytesResumable, getDownloadURL
+} from 'firebase/storage';
 import { 
   ShoppingBag, Search, Plus, Trash, LogOut,
   X, Star, RefreshCcw, Folder, ChevronDown, Printer, Download, Save, Check, CheckCheck,
@@ -21,32 +20,20 @@ import {
   Grid, AlignCenter, MousePointer2, Monitor, Paperclip, Menu, Loader2, FileUp, MonitorPlay, Image as ImageIcon
 } from 'lucide-react';
 
-// ... importlar biter ...
-
-// BU SATIRI MUTLAKA EKLE:
+// EKSİK OLAN TANIMLAMA
 const FileIcon = FileText; 
-
-// IPAD HATA YAKALAYICI (Bunu da hemen altına ekle)
-window.globalErrorLog = [];
-window.onerror = function (msg, url, lineNo, columnNo, error) {
-  window.globalErrorLog.push(msg + ' (Satır: ' + lineNo + ')');
-  return false;
-};
-
-// ... kod devam eder ...
 
 // ==========================================
 // IPAD 2 / ESKİ SAFARI İÇİN KRİTİK YAMALAR
 // ==========================================
 
-// Hata mesajını ekrana basmak için global değişken
+// Hata mesajını ekrana basmak için
 window.globalErrorLog = [];
 window.onerror = function (msg, url, lineNo, columnNo, error) {
   var message = [
-    'Mesaj: ' + msg,
-    'Satır: ' + lineNo,
-    'Sütun: ' + columnNo,
-    'Hata Nesnesi: ' + JSON.stringify(error)
+    'Msg: ' + msg,
+    'Line: ' + lineNo,
+    'Err: ' + (error ? error.message : 'N/A')
   ].join(' - ');
   window.globalErrorLog.push(message);
   return false;
@@ -194,8 +181,9 @@ try {
   storage = getStorage(app);
 } catch (error) {
   console.error("Firebase Başlatma Hatası:", error);
-}
+  // DÜZELTME BURADA: Bu satırı catch bloğunun İÇİNE aldık
   if (window.globalErrorLog) window.globalErrorLog.push("Firebase Başlatma Hatası: " + error.message);
+}
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : "sahra-kuyum-app";
 // ==========================================
