@@ -1,7 +1,6 @@
 /* global __firebase_config, __app_id, __initial_auth_token */
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-// DİKKAT: Sadece bu import bloğu kalmalı
 import { 
   getFirestore, collection, addDoc, doc, deleteDoc, updateDoc,
   query, serverTimestamp, onSnapshot, writeBatch, orderBy, setDoc, getDoc, where, getDocs,
@@ -23,25 +22,6 @@ import {
 
 const FileIcon = FileText; 
 
-// ==========================================
-// IPAD 2 İÇİN REST API YARDIMCISI (EKSİK OLAN BU)
-// ==========================================
-const parseFirestoreREST = (documents) => {
-    if (!documents) return [];
-    return documents.map(doc => {
-        const fields = doc.fields;
-        const data = { id: doc.name.split('/').pop() };
-        for (const key in fields) {
-            const val = fields[key];
-            if (val.stringValue !== undefined) data[key] = val.stringValue;
-            else if (val.integerValue !== undefined) data[key] = parseInt(val.integerValue);
-            else if (val.doubleValue !== undefined) data[key] = parseFloat(val.doubleValue);
-            else if (val.booleanValue !== undefined) data[key] = val.booleanValue;
-            else if (val.timestampValue !== undefined) data[key] = val.timestampValue;
-        }
-        return data;
-    });
-};
 
 // ==========================================
 // IPAD 2 / ESKİ SAFARI İÇİN KRİTİK YAMALAR
@@ -171,7 +151,7 @@ const ORDER_STAGES = {
 };
 
 // ==========================================
-// FIREBASE CONFIG (IPAD 2 İÇİN SADELEŞTİRİLMİŞ)
+// FIREBASE CONFIG (STANDART HIZLI MOD)
 // ==========================================
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
   apiKey: "AIzaSyBU8dWUrlVu2PUiysZ44r0USHn-TtfT6R0",
@@ -187,16 +167,7 @@ let app, auth, db, storage;
 try {
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
-  
-  // IPAD 2 İÇİN SADECE BU AYAR KALACAK
-  try {
-    db = initializeFirestore(app, {
-      experimentalForceLongPolling: true
-    });
-  } catch (firestoreError) {
-    db = getFirestore(app);
-  }
-  
+  db = getFirestore(app); // 
   storage = getStorage(app);
 } catch (error) {
   console.error("Firebase Başlatma Hatası:", error);
@@ -816,19 +787,52 @@ const AIStudio = () => {
 
 const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) => {
     
+    // Yardımcı: Gram Hesaplama
+    const calculateOrderGram = (items) => {
+        if (!items) return 0;
+        return items.reduce((acc, item) => {
+            const g = parseFloat(item.gram.toString().replace(',', '.')) || 0;
+            const q = parseInt(item.quantity) || 1;
+            return acc + (g * q);
+        }, 0);
+    };
+
+    // İstatistikler
     const workshopStats = useMemo(() => {
         const preparing = orders.filter(o => o.status === 'preparing');
         const count = preparing.length;
-        const totalGram = preparing.reduce((acc, order) => {
-             const orderGram = order.items ? order.items.reduce((iAcc, item) => iAcc + (parseGram(item.gram) * (parseInt(item.quantity) || 1)), 0) : 0;
-             return acc + orderGram;
-        }, 0);
+        const totalGram = preparing.reduce((acc, order) => acc + calculateOrderGram(order.items), 0);
         return { count, totalGram: totalGram.toFixed(2) };
     }, [orders]);
+
+    // Seçili aya göre tamamlanan siparişleri filtrele
+    const completedOrdersOfMonth = useMemo(() => {
+        return orders.filter(o => {
+            if (o.status !== 'delivered') return false;
+            if (!o.createdAt || !o.createdAt.seconds) return false;
+            const d = new Date(o.createdAt.seconds * 1000);
+            return d.getMonth() === dashboardDate.getMonth() && d.getFullYear() === dashboardDate.getFullYear();
+        }).sort((a, b) => b.createdAt.seconds - a.createdAt.seconds); // En yeniden eskiye
+    }, [orders, dashboardDate]);
+
+    // O ayın toplam gramı
+    const monthlyTotalGram = useMemo(() => {
+        return completedOrdersOfMonth.reduce((acc, o) => acc + calculateOrderGram(o.items), 0);
+    }, [completedOrdersOfMonth]);
+
+    // Ay Değiştirme Fonksiyonu
+    const changeMonth = (dir) => {
+        const newDate = new Date(dashboardDate.getFullYear(), dashboardDate.getMonth() + dir, 1);
+        setDashboardDate(newDate);
+    };
+
+    const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
             <h2 className="text-2xl font-bold text-slate-800">Panel Özeti</h2>
+            
+            {/* Üst İstatistik Kartları */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                     <div className="text-slate-500 text-sm font-bold mb-1">Toplam Ürün</div>
@@ -841,9 +845,94 @@ const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) =
                     </div>
                 </div>
             </div>
+
+            {/* Grafikler ve Takvim */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <SalesCalendar orders={orders} selectedDate={dashboardDate} onDateChange={setDashboardDate} />
                 <MonthlyPerformanceView orders={orders} selectedDate={dashboardDate} />
+            </div>
+
+            {/* YENİ EKLENEN KISIM: AYLIK TAMAMLANAN SİPARİŞ LİSTESİ */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6">
+                <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                        <CheckCircle size={18} className="text-green-600"/> 
+                        Tamamlanan Siparişler ({monthNames[dashboardDate.getMonth()]} {dashboardDate.getFullYear()})
+                    </h3>
+                    
+                    {/* Ay Değiştirme Butonları */}
+                    <div className="flex items-center gap-2 bg-white border rounded-lg p-1 shadow-sm">
+                        <button onClick={() => changeMonth(-1)} className="p-1.5 hover:bg-slate-100 rounded-md text-slate-600 transition-colors" title="Önceki Ay">
+                            <ChevronLeft size={20}/>
+                        </button>
+                        <span className="text-sm font-bold w-24 text-center select-none text-slate-700">
+                            {monthNames[dashboardDate.getMonth()]}
+                        </span>
+                        <button onClick={() => changeMonth(1)} className="p-1.5 hover:bg-slate-100 rounded-md text-slate-600 transition-colors" title="Sonraki Ay">
+                            <ChevronRight size={20}/>
+                        </button>
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-100 text-slate-600 font-bold border-b text-xs uppercase tracking-wider">
+                            <tr>
+                                <th className="p-4">Tarih</th>
+                                <th className="p-4">Müşteri / Firma</th>
+                                <th className="p-4">Sipariş İçeriği</th>
+                                <th className="p-4 text-right">Toplam Gram</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {completedOrdersOfMonth.length === 0 ? (
+                                <tr>
+                                    <td colSpan="4" className="p-8 text-center text-slate-400 font-medium">
+                                        Bu ay tamamlanan sipariş bulunmuyor.
+                                    </td>
+                                </tr>
+                            ) : (
+                                completedOrdersOfMonth.map(order => {
+                                    const gram = calculateOrderGram(order.items);
+                                    return (
+                                        <tr key={order.id} className="hover:bg-slate-50 transition-colors group">
+                                            <td className="p-4 text-slate-500 font-mono text-xs whitespace-nowrap">
+                                                {new Date(order.createdAt.seconds * 1000).toLocaleString('tr-TR')}
+                                            </td>
+                                            <td className="p-4 font-bold text-slate-700">
+                                                {order.customerName}
+                                                <div className="text-[10px] text-slate-400 font-normal">{order.customOrderNo}</div>
+                                            </td>
+                                            <td className="p-4 text-slate-600 text-xs">
+                                                <div className="max-w-md truncate">
+                                                    {order.items?.map(i => `${i.quantity}x ${i.code}`).join(', ')}
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                                    {order.items?.length} farklı model
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-right font-bold text-green-700 font-mono text-sm">
+                                                {gram.toFixed(2)} gr
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                        {completedOrdersOfMonth.length > 0 && (
+                            <tfoot className="bg-slate-50 border-t border-slate-200">
+                                <tr>
+                                    <td colSpan="3" className="p-4 text-right font-bold text-slate-600 text-xs uppercase">
+                                        {monthNames[dashboardDate.getMonth()]} Ayı Toplamı:
+                                    </td>
+                                    <td className="p-4 text-right font-bold text-green-800 text-base">
+                                        {monthlyTotalGram.toFixed(2)} gr
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        )}
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -1065,16 +1154,19 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
     const [images, setImages] = useState([]);
     const [uploading, setUploading] = useState(false);
     
-    // Yükleme işlemi için seçim state'leri
+    // Yükleme Seçimleri
     const [selectedCategory, setSelectedCategory] = useState("Yüzük");
     const [selectedSubCategory, setSelectedSubCategory] = useState("AS-B");
 
-    // Verileri çek (Sıralama: Eskiden yeniye)
+    // Sürükle Bırak ve Önizleme State'leri
+    const [dragActive, setDragActive] = useState(false);
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState(null);
+
+    // Verileri çek
     useEffect(() => {
         let q = query(collection(db, 'artifacts', appId, 'public', 'data', 'catalogue_images'), orderBy('createdAt', 'asc'));
-        
         const unsub = onSnapshot(q, (snap) => {
-            // Object Spread fix: { id: d.id, ...d.data() } -> Object.assign
             const fetchedImages = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
             setImages(fetchedImages);
         });
@@ -1094,45 +1186,71 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
         return grouped;
     }, [images]);
 
-    // YÜKLEME FONKSİYONU (STORAGE KULLANIR - ORİJİNAL KALİTE)
-    const handleUpload = async (e) => {
-        const file = e.target.files[0];
+    // Dosya Seçme / Sürükleme Fonksiyonları
+    const handleDrag = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true);
+        } else if (e.type === "dragleave") {
+            setDragActive(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleFileSelect(e.dataTransfer.files[0]);
+        }
+    };
+
+    const handleFileSelect = (file) => {
         if (!file) return;
-        
-        // Basit boyut kontrolü (Max 15MB)
         if(file.size > 15 * 1024 * 1024) {
             setNotification({ type: 'error', message: 'Dosya boyutu çok yüksek (Max 15MB)' });
             return;
         }
+        setSelectedFile(file);
+        setPreviewUrl(URL.createObjectURL(file));
+    };
 
+    const executeUpload = async () => {
+        if (!selectedFile) return;
         setUploading(true);
         try {
-            // 1. Dosya ismini güvenli hale getir
-            const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
+            const safeName = selectedFile.name.replace(/[^a-zA-Z0-9.]/g, "_");
             const fileName = `catalogue_hd/${Date.now()}_${safeName}`;
             const storageRef = ref(storage, fileName);
             
-            // 2. Storage'a yükle (Orijinal Kalite)
-            const uploadTask = await uploadBytesResumable(storageRef, file);
+            const uploadTask = await uploadBytesResumable(storageRef, selectedFile);
             const downloadUrl = await getDownloadURL(uploadTask.ref);
 
-            // 3. Veritabanına URL kaydet
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'catalogue_images'), {
-                imageUrl: downloadUrl, // Base64 yerine URL
+                imageUrl: downloadUrl,
                 category: selectedCategory,
                 subcategory: selectedSubCategory,
                 createdAt: serverTimestamp(),
-                storagePath: fileName 
+                storagePath: fileName,
+                fileName: selectedFile.name // Dosya ismini kaydediyoruz
             });
             
-            setNotification({ type: 'success', message: 'Fotoğraf orijinal kalitede yüklendi.' });
+            setNotification({ type: 'success', message: 'Fotoğraf yüklendi.' });
+            // Temizle
+            setSelectedFile(null);
+            setPreviewUrl(null);
         } catch (error) {
             console.error("Yükleme hatası:", error);
             setNotification({ type: 'error', message: 'Yükleme hatası: ' + error.message });
         } finally {
             setUploading(false);
-            e.target.value = null;
         }
+    };
+
+    const cancelSelection = () => {
+        setSelectedFile(null);
+        setPreviewUrl(null);
     };
 
     const handleDelete = async (id) => {
@@ -1151,17 +1269,19 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
                 <ImageIcon className="text-blue-500"/> Katalog Yönetimi (HD)
             </h2>
 
-            {/* YÜKLEME ALANI */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            {/* YENİ SÜRÜKLE BIRAK ALANI */}
+            <div className={`bg-white p-6 rounded-xl shadow-sm border transition-all ${selectedFile ? 'border-blue-200 ring-2 ring-blue-100' : 'border-slate-200'}`}>
                 <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                    <Upload size={16}/> Yeni Fotoğraf Yükle (Orijinal Kalite)
+                    <Upload size={16}/> Yeni Fotoğraf Yükle
                 </h3>
-                <div className="flex flex-col md:flex-row gap-4 items-end bg-slate-50 p-4 rounded-lg border border-slate-100">
-                    <div className="flex-1 w-full grid grid-cols-2 gap-4">
+                
+                <div className="flex flex-col gap-4">
+                    {/* Kategori Seçimleri */}
+                    <div className="grid grid-cols-2 gap-4">
                          <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">Kategori Seç</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Kategori</label>
                             <select 
-                                className="w-full border rounded-lg p-3 text-sm font-bold bg-white focus:ring-2 focus:ring-blue-200 outline-none"
+                                className="w-full border rounded-lg p-3 text-sm font-bold bg-slate-50 outline-none"
                                 value={selectedCategory}
                                 onChange={(e) => {
                                     const cat = e.target.value;
@@ -1177,9 +1297,9 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
                             </select>
                          </div>
                          <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">Alt Kategori Seç</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Alt Kategori</label>
                             <select 
-                                className="w-full border rounded-lg p-3 text-sm font-bold bg-white focus:ring-2 focus:ring-blue-200 outline-none"
+                                className="w-full border rounded-lg p-3 text-sm font-bold bg-slate-50 outline-none"
                                 value={selectedSubCategory}
                                 onChange={(e) => setSelectedSubCategory(e.target.value)}
                             >
@@ -1188,65 +1308,108 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
                          </div>
                     </div>
 
-                    <label className={`cursor-pointer bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                        {uploading ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}
-                        <span className="whitespace-nowrap">
-                            {uploading ? 'Yükleniyor...' : 'Seçili Klasöre Yükle'}
-                        </span>
-                        <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
-                    </label>
-                </div>
-                
-                {/* LİSTELEME ALANI */}
-                <div className="mt-8 space-y-4">
-                    <div className="text-sm font-bold text-slate-400 mb-2 px-1">Katalog Klasörleri</div>
-                    
-                    {Object.entries(groupedImages).length === 0 && (
-                        <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-300">
-                            Henüz hiç katalog fotoğrafı yüklenmemiş.
-                        </div>
-                    )}
-
-                    {Object.entries(groupedImages)
-                        .sort(([catA], [catB]) => CATEGORIES.indexOf(catA) - CATEGORIES.indexOf(catB))
-                        .map(([category, subcategories]) => (
-                        <CollapsibleSection 
-                            key={category} 
-                            title={category} 
-                            count={Object.values(subcategories).reduce((acc, curr) => acc + curr.length, 0)} 
-                            level={0}
-                        >
-                            <div className="space-y-2 mt-2">
-                                {Object.entries(subcategories)
-                                    .sort(([subA], [subB]) => subA.localeCompare(subB, undefined, { numeric: true, sensitivity: 'base' }))
-                                    .map(([subcategory, items]) => (
-                                    <CollapsibleSection 
-                                        key={subcategory} 
-                                        title={subcategory} 
-                                        count={items.length} 
-                                        level={1}
-                                    >
-                                        <div className="p-2 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-                                            {items.map(img => (
-                                                <div key={img.id} className="group relative aspect-[9/16] bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shadow-sm hover:shadow-md transition-all">
-                                                    <img src={img.imageUrl} className="w-full h-full object-cover" loading="lazy" />
-                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors"></div>
-                                                    <button 
-                                                        onClick={() => handleDelete(img.id)}
-                                                        className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-md transform scale-90 hover:scale-100"
-                                                        title="Fotoğrafı Sil"
-                                                    >
-                                                        <Trash size={14} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </CollapsibleSection>
-                                ))}
+                    {/* Drop Zone */}
+                    <div 
+                        className={`relative w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer overflow-hidden group 
+                        ${dragActive ? 'border-yellow-500 bg-yellow-50 scale-[1.01]' : 'border-slate-300 hover:border-yellow-400 hover:bg-slate-50'}
+                        ${selectedFile ? 'bg-slate-100 border-solid border-slate-300' : ''}`}
+                        onDragEnter={handleDrag} 
+                        onDragLeave={handleDrag} 
+                        onDragOver={handleDrag} 
+                        onDrop={handleDrop}
+                        onClick={() => !selectedFile && document.getElementById('catalogue-upload-input').click()}
+                    >
+                        <input id="catalogue-upload-input" type="file" accept="image/*" className="hidden" onChange={(e) => handleFileSelect(e.target.files[0])} />
+                        
+                        {selectedFile && previewUrl ? (
+                            <div className="relative w-full h-full p-2 flex flex-col items-center justify-center">
+                                <img src={previewUrl} className="h-32 object-contain mb-2 shadow-sm rounded bg-white" alt="Önizleme" />
+                                <div className="text-xs font-bold text-slate-700 bg-white/80 px-2 py-1 rounded">{selectedFile.name}</div>
+                                <button onClick={(e) => { e.stopPropagation(); cancelSelection(); }} className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 transition-colors shadow-md">
+                                    <X size={16} />
+                                </button>
                             </div>
-                        </CollapsibleSection>
-                    ))}
+                        ) : (
+                            <div className="text-center p-4">
+                                <Upload className={`mx-auto mb-2 ${dragActive ? 'text-yellow-600' : 'text-slate-400'}`} size={32}/>
+                                <p className="text-sm font-bold text-slate-600">Fotoğrafı buraya sürükleyin</p>
+                                <p className="text-xs text-slate-400 mt-1">veya seçmek için tıklayın</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Yükle Butonu */}
+                    {selectedFile && (
+                        <button 
+                            onClick={executeUpload} 
+                            disabled={uploading}
+                            className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {uploading ? <Loader2 size={20} className="animate-spin"/> : <Check size={20}/>}
+                            {uploading ? 'Yükleniyor...' : 'Onayla ve Yükle'}
+                        </button>
+                    )}
                 </div>
+            </div>
+                
+            {/* LİSTELEME ALANI */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div className="text-sm font-bold text-slate-400 mb-4 px-1">Yüklü Fotoğraflar</div>
+                
+                {Object.entries(groupedImages).length === 0 && (
+                    <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                        Henüz hiç katalog fotoğrafı yüklenmemiş.
+                    </div>
+                )}
+
+                {Object.entries(groupedImages)
+                    .sort(([catA], [catB]) => CATEGORIES.indexOf(catA) - CATEGORIES.indexOf(catB))
+                    .map(([category, subcategories]) => (
+                    <CollapsibleSection 
+                        key={category} 
+                        title={category} 
+                        count={Object.values(subcategories).reduce((acc, curr) => acc + curr.length, 0)} 
+                        level={0}
+                    >
+                        <div className="space-y-2 mt-2">
+                            {Object.entries(subcategories)
+                                .sort(([subA], [subB]) => subA.localeCompare(subB, undefined, { numeric: true, sensitivity: 'base' }))
+                                .map(([subcategory, items]) => (
+                                <CollapsibleSection 
+                                    key={subcategory} 
+                                    title={subcategory} 
+                                    count={items.length} 
+                                    level={1}
+                                >
+                                    {/* GRID GÖRÜNÜMÜ - İSİMLERLE BERABER */}
+                                    <div className="p-2 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                        {items.map(img => (
+                                            <div key={img.id} className="group relative bg-slate-50 rounded-lg border border-slate-200 p-2 hover:shadow-md transition-all">
+                                                <div className="aspect-[9/16] bg-white rounded overflow-hidden mb-2 relative">
+                                                    <img src={img.imageUrl} className="w-full h-full object-cover" loading="lazy" alt={img.fileName || "Fotoğraf"} />
+                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+                                                </div>
+                                                
+                                                {/* DOSYA İSMİ */}
+                                                <div className="text-[10px] font-bold text-slate-600 truncate text-center" title={img.fileName || "İsimsiz"}>
+                                                    {img.fileName || "İsimsiz Dosya"}
+                                                </div>
+
+                                                <button 
+                                                    onClick={() => handleDelete(img.id)}
+                                                    className="absolute top-1 right-1 bg-red-500 text-white p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-md transform scale-90 hover:scale-100"
+                                                    title="Sil"
+                                                >
+                                                    <Trash size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CollapsibleSection>
+                            ))}
+                        </div>
+                    </CollapsibleSection>
+                ))}
             </div>
         </div>
     );
@@ -2337,60 +2500,36 @@ const App = () => {
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
     }, [user]);
 
-    // Veri Çekme (REST API - TÜM ÜRÜNLERİ GETİREN GÜNCEL KOD)
+    // Veri Çekme 
     useEffect(() => {
         if (!user) return;
 
-        const fetchData = async () => {
-            try {
-                const token = await user.getIdToken();
-                // 6000 ürün için pageSize limitini 10000 yapıyoruz (Bilgisayar ve Tablet için)
-                const baseUrl = `https://firestore.googleapis.com/v1/projects/sahra-c9ba6/databases/(default)/documents/artifacts/${appId}/public/data/`;
-                const headers = { 'Authorization': `Bearer ${token}` };
+        // 1. ÜRÜNLERİ ÇEK (Anlık Takip)
+        const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => {
+            const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setProducts(list);
+        });
 
-                // Ürünleri Çek
-                const prodRes = await fetch(baseUrl + "products?pageSize=10000", { headers });
-                const prodJson = await prodRes.json();
-                
-                if (prodJson.documents) {
-                    const cleanProducts = parseFirestoreREST(prodJson.documents);
-                    setProducts(cleanProducts);
-                    console.log("Ürünler yüklendi:", cleanProducts.length);
-                } else {
-                    console.log("Ürün bulunamadı veya boş geldi.");
-                    setProducts([]);
-                }
+        // 2. SİPARİŞLERİ ÇEK (Tarih Sıralı)
+        // Timestamp formatında geleceği için Özet sayfası artık bozulmayacak
+        const qOrders = query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc'));
+        const unsubOrders = onSnapshot(qOrders, (snap) => {
+            setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
 
-                // Siparişleri Çek
-                const orderRes = await fetch(baseUrl + "orders?pageSize=100&orderBy=createdAt%20desc", { headers });
-                const orderJson = await orderRes.json();
-                if (orderJson.documents) {
-                    setOrders(parseFirestoreREST(orderJson.documents));
-                }
-
-                // Kullanıcıyı Çek
-                const userRes = await fetch(baseUrl + "app_users/" + user.uid, { headers });
-                const userJson = await userRes.json();
-                if (userJson.fields) {
-                    const fields = userJson.fields;
-                    const userData = { id: user.uid };
-                    for (const key in fields) {
-                        const val = fields[key];
-                        if (val.stringValue) userData[key] = val.stringValue;
-                    }
-                    setCurrentUserData(userData);
-                }
-
-            } catch (e) {
-                console.error("Veri çekme hatası:", e);
+        // 3. KULLANICIYI ÇEK
+        const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
+        const unsubUser = onSnapshot(userRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setCurrentUserData(docSnap.data());
             }
+        });
+
+        return () => {
+            unsubProducts();
+            unsubOrders();
+            unsubUser();
         };
-
-        fetchData();
-        // 20 saniyede bir otomatik yenileme
-        const interval = setInterval(fetchData, 20000);
-        return () => clearInterval(interval);
-
     }, [user, appId]);
 
     const handleAdminLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); setNotification({type:'success', message:'Giriş başarılı'}); } catch (err) { setNotification({type:'error', message:'Giriş başarısız: ' + err.message}); } };
@@ -2398,15 +2537,48 @@ const App = () => {
     const handleAddToCart = useCallback((product) => { setCart(prev => [...prev, { ...product, cartId: Date.now() }]); setNotification({ type: 'success', message: `${product.code} sepete eklendi` }); if(cart.length === 0) setOrderKarat(product.selectedKarat); }, [cart.length]);
     const removeFromCart = useCallback((cartId) => { setCart(prev => { const newCart = prev.filter(item => item.cartId !== cartId); if(newCart.length === 0) setOrderKarat(null); return newCart; }); }, []);
     
+    // SİPARİŞ OLUŞTURMA 
     const handleCheckout = useCallback(async (name, phone, note, deliveryDate, karat, orderNo, orderStamp, items = null, targetStatus = 'new', finalOrderDate) => { 
         if(cart.length === 0 && (!items || items.length === 0)) return; 
         if (!user) { alert("Oturum açılıyor..."); return; } 
         try { 
             const itemsToSave = (items || cart).map(item => { const { _tempId, imageUrl, imageFile, ...rest } = item; return rest; }); 
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), { customerName: name, customerPhone: phone, totalNote: note, items: itemsToSave, createdAt: finalOrderDate ? new Date(finalOrderDate) : serverTimestamp(), status: targetStatus, deliveryDate: deliveryDate, orderKarat: karat, customOrderNo: orderNo, orderStamp: orderStamp, createdBy: user.uid }); 
-            if (targetStatus !== 'draft') { setOrderKarat(null); setDraftData({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] }); } 
-            setIsOrderPreviewOpen(false); setNotification({ type: 'success', message: targetStatus === 'draft' ? "Taslak kaydedildi!" : "Sipariş oluşturuldu!" }); 
-        } catch (error) { setNotification({ type: 'error', message: "Hata: " + error.message }); } 
+            
+            // SAAT DÜZELTME:
+            // Eğer seçilen tarih BUGÜN ise, şu anki saati (serverTimestamp) kullan.
+            // Böylece saat 03:00 olarak görünmez, gerçek saat görünür.
+            let creationTime = serverTimestamp();
+            if (finalOrderDate) {
+                const today = new Date().toISOString().split('T')[0];
+                if (finalOrderDate !== today) {
+                    // Eğer geçmiş/gelecek bir tarih seçildiyse o günün başını al
+                    creationTime = new Date(finalOrderDate);
+                }
+            }
+
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), { 
+                customerName: name, 
+                customerPhone: phone, 
+                totalNote: note, 
+                items: itemsToSave, 
+                createdAt: creationTime, // Düzeltilmiş saat
+                status: targetStatus, 
+                deliveryDate: deliveryDate, 
+                orderKarat: karat, 
+                customOrderNo: orderNo, 
+                orderStamp: orderStamp, 
+                createdBy: user.uid 
+            }); 
+            
+            if (targetStatus !== 'draft') { 
+                setOrderKarat(null); 
+                setDraftData({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] }); 
+            } 
+            setIsOrderPreviewOpen(false); 
+            setNotification({ type: 'success', message: targetStatus === 'draft' ? "Taslak kaydedildi!" : "Sipariş oluşturuldu!" }); 
+        } catch (error) { 
+            setNotification({ type: 'error', message: "Hata: " + error.message }); 
+        } 
     }, [cart, user]);
     
     const handleUpdateOrder = useCallback(async (orderId, data) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), data); setIsOrderPreviewOpen(false); setViewingOrder(null); setNotification({type:'success', message:'Sipariş güncellendi'}); } catch (error) { setNotification({type:'error', message: error.message}); } }, []);
