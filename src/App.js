@@ -283,19 +283,46 @@ const PrintStyles = () => (
     .screen-view-container { display: flex; flex-direction: column; align-items: center; background: #525659; padding: 40px 20px; min-height: 100vh; }
     .scrollbar-hide::-webkit-scrollbar { display: none; }
     .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
     @media print {
       @page { size: A4; margin: 0mm; }
       body * { visibility: hidden; }
       .no-print { display: none !important; }
+      
+      /* BEYAZ SAYFA DÜZELTMESİ: Flex yapıları block'a çevrildi ve position absolute düzeltildi */
       #printable-root, #printable-root * { visibility: visible; }
-      #printable-root { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+      #printable-root { 
+          position: relative !important; 
+          left: 0; 
+          top: 0; 
+          width: 100%; 
+          margin: 0; 
+          padding: 0; 
+          display: block !important; 
+      }
+      
+      .print-page { 
+          display: block !important; 
+          border: none !important; 
+          box-shadow: none !important; 
+          margin: 0 !important; 
+          page-break-after: always !important; 
+          width: 100% !important; 
+          height: auto !important; 
+          min-height: auto !important; 
+      }
+      
+      .print-page:last-child { page-break-after: auto !important; }
+      
       .screen-only, .admin-panel-container, .modal-overlay-fix > div:first-child { display: none !important; }
       html, body { background: white !important; height: auto !important; overflow: visible !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .modal-overlay-fix { position: static !important; width: 100% !important; height: auto !important; background: white !important; overflow: visible !important; z-index: auto !important; display: block !important; }
       .screen-view-container { display: block !important; padding: 0 !important; margin: 0 !important; background: white !important; }
-      .print-page { border: none !important; box-shadow: none !important; margin: 0 !important; page-break-after: always !important; width: 100% !important; height: auto !important; min-height: auto !important; }
-      .print-page:last-child { page-break-after: auto !important; }
+      
+      /* İçerik düzenlerinin bozulmaması için gerekli grid/flex ayarları */
       .erp-grid { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 5px !important; }
+      .erp-card { display: flex !important; flex-direction: column !important; page-break-inside: avoid !important; }
+      
       input, textarea, select { border: none !important; background: transparent !important; padding: 0 !important; margin: 0 !important; resize: none !important; box-shadow: none !important; font-weight: bold !important; color: #000 !important; appearance: none; -webkit-appearance: none; }
       .text-red-600 { color: #dc2626 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .print-invisible-card { display: none !important; }
