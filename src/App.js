@@ -3,12 +3,11 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffe
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, doc, deleteDoc, updateDoc,
-  query, serverTimestamp, onSnapshot, writeBatch, orderBy, setDoc, getDoc, where, getDocs,
-  initializeFirestore, limit
+  query, serverTimestamp, onSnapshot, writeBatch, orderBy, setDoc, getDoc
 } from 'firebase/firestore';
 import { 
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, 
-  signInAnonymously, signInWithCustomToken, signOut, updateProfile
+  signInWithCustomToken, signOut, updateProfile
 } from 'firebase/auth';
 import {
   getStorage, ref, uploadBytesResumable, getDownloadURL
@@ -21,111 +20,6 @@ import {
 } from 'lucide-react';
 
 const FileIcon = FileText; 
-
-
-// ==========================================
-// IPAD 2 / ESKİ SAFARI İÇİN KRİTİK YAMALAR
-// ==========================================
-
-// Hata mesajını ekrana basmak için
-window.globalErrorLog = [];
-window.onerror = function (msg, url, lineNo, columnNo, error) {
-  var message = [
-    'Msg: ' + msg,
-    'Line: ' + lineNo,
-    'Err: ' + (error ? error.message : 'N/A')
-  ].join(' - ');
-  window.globalErrorLog.push(message);
-  return false;
-};
-
-// 0. globalThis Yaması
-if (typeof globalThis === 'undefined') {
-  window.globalThis = window;
-}
-
-// 1. requestAnimationFrame Yaması
-(function() {
-    var lastTime = 0;
-    var vendors = ['ms', 'moz', 'webkit', 'o'];
-    for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
-        window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
-        window.cancelAnimationFrame = window[vendors[x]+'CancelAnimationFrame'] || window[vendors[x]+'CancelRequestAnimationFrame'];
-    }
-    if (!window.requestAnimationFrame)
-        window.requestAnimationFrame = function(callback, element) {
-            var currTime = new Date().getTime();
-            var timeToCall = Math.max(0, 16 - (currTime - lastTime));
-            var id = window.setTimeout(function() { callback(currTime + timeToCall); }, timeToCall);
-            lastTime = currTime + timeToCall;
-            return id;
-        };
-    if (!window.cancelAnimationFrame)
-        window.cancelAnimationFrame = function(id) { clearTimeout(id); };
-}());
-
-// 2. Object.entries Yaması
-if (!Object.entries) {
-  Object.entries = function( obj ){
-    var ownProps = Object.keys( obj ),
-        i = ownProps.length,
-        resArray = new Array(i);
-    while (i--)
-      resArray[i] = [ownProps[i], obj[ownProps[i]]];
-    return resArray;
-  };
-}
-
-// 3. Object.values Yaması
-if (!Object.values) {
-    Object.values = function(obj) {
-        return Object.keys(obj).map(function(e) {
-            return obj[e];
-        });
-    };
-}
-
-// 4. Object.assign Yaması
-if (typeof Object.assign !== 'function') {
-  Object.assign = function(target) {
-    'use strict';
-    if (target == null) throw new TypeError('Cannot convert undefined or null to object');
-    target = Object(target);
-    for (var index = 1; index < arguments.length; index++) {
-      var source = arguments[index];
-      if (source != null) {
-        for (var key in source) {
-          if (Object.prototype.hasOwnProperty.call(source, key)) {
-            target[key] = source[key];
-          }
-        }
-      }
-    }
-    return target;
-  };
-}
-
-// 5. Fetch Yerine XMLHttpReqest (Eski Safari fetch desteklemez)
-const fetchBlobXHR = (url) => {
-    return new Promise((resolve, reject) => {
-        try {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', url, true);
-            xhr.responseType = 'blob';
-            xhr.onload = function() {
-                if (this.status === 200) {
-                    resolve(this.response);
-                } else {
-                    reject(new Error('Image load failed: ' + this.status));
-                }
-            };
-            xhr.onerror = function() {
-                reject(new Error('Network error'));
-            };
-            xhr.send();
-        } catch(e) { reject(e); }
-    });
-};
 
 // ==========================================
 // CONSTANTS & HELPERS...
@@ -151,7 +45,7 @@ const ORDER_STAGES = {
 };
 
 // ==========================================
-// FIREBASE CONFIG (STANDART HIZLI MOD)
+// FIREBASE CONFIG
 // ==========================================
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
   apiKey: "AIzaSyBU8dWUrlVu2PUiysZ44r0USHn-TtfT6R0",
@@ -167,13 +61,14 @@ let app, auth, db, storage;
 try {
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
-  db = getFirestore(app); // 
+  db = getFirestore(app);
   storage = getStorage(app);
 } catch (error) {
   console.error("Firebase Başlatma Hatası:", error);
 }
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : "sahra-kuyum-app";
+
 // ==========================================
 // UTILS
 // ==========================================
@@ -203,7 +98,8 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                const MAX_SIZE = 2000; 
+                // STORAGE HATASINI ÖNLEMEK İÇİN BOYUTLAR VE KALİTE OPTİMİZE EDİLDİ
+                const MAX_SIZE = 1600; 
                 
                 if (width > MAX_SIZE || height > MAX_SIZE) {
                     const ratio = Math.min(MAX_SIZE / width, MAX_SIZE / height);
@@ -219,7 +115,7 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                let quality = 0.95; 
+                let quality = 0.85; 
                 let dataUrl = canvas.toDataURL('image/jpeg', quality);
                 
                 resolve({ base64: dataUrl, type: 'image' });
@@ -236,37 +132,28 @@ const processFile = (file) => new Promise((resolve, reject) => {
 
 const handleDownload = async (url, filename) => {
     try {
-        // iPad 2 uyumlu indirme yöntemi
-        let blob;
-        // Eğer yukarıda fetchBlobXHR tanımlıysa onu kullan (iPad için)
-        if (typeof fetchBlobXHR === 'function') {
-             blob = await fetchBlobXHR(url);
-        } else {
-             // Değilse standart fetch kullan (PC için)
-             const response = await fetch(url);
-             blob = await response.blob();
-        }
-        
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = filename || 'indirilen_dosya';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
+         const response = await fetch(url);
+         const blob = await response.blob();
+         const blobUrl = window.URL.createObjectURL(blob);
+         const link = document.createElement('a');
+         link.href = blobUrl;
+         link.download = filename || 'indirilen_dosya';
+         document.body.appendChild(link);
+         link.click();
+         document.body.removeChild(link);
+         window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
         console.error("İndirme hatası:", error);
-        // Blob başarısız olursa direkt açmayı dene
         window.open(url, '_blank');
     }
 };
+
 // ==========================================
 // SHARED COMPONENTS
 // ==========================================
 const PrintStyles = () => (
   <style>{`
-    .print-page { width: 210mm; min-height: 297mm; padding: 10mm; background: white; position: relative; display: flex; flex-direction: column; box-sizing: border-box; border: 1px solid #e2e8f0; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-bottom: 40px; }
+    .print-page { width: 210mm; min-height: 297mm; padding: 10mm; background: white; position: relative; display: flex; flex-direction: column; box-sizing: border-box; border: 1px solid #e2e8f0; margin-bottom: 40px; }
     .header-table { width: 100%; border-collapse: collapse; margin-bottom: 5px; font-size: 11px; border: 1px solid #000; }
     .header-table th, .header-table td { border: 1px solid #000; padding: 4px; text-align: left; vertical-align: middle; line-height: 1.1; }
     .header-table th { background-color: #eee; font-weight: bold; }
@@ -285,20 +172,30 @@ const PrintStyles = () => (
     .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
     @media print {
-      @page { size: A4; margin: 0mm; }
-      body * { visibility: hidden; }
+      @page { size: A4; margin: 0; }
+      body { margin: 0; padding: 0; background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      
+      .screen-only { display: none !important; }
       .no-print { display: none !important; }
       
-      /* BEYAZ SAYFA DÜZELTMESİ: Flex yapıları block'a çevrildi ve position absolute düzeltildi */
-      #printable-root, #printable-root * { visibility: visible; }
-      #printable-root { 
-          position: relative !important; 
-          left: 0; 
-          top: 0; 
-          width: 100%; 
-          margin: 0; 
-          padding: 0; 
+      .modal-overlay-fix { 
+          position: static !important; 
+          background: transparent !important; 
           display: block !important; 
+          overflow: visible !important;
+          height: auto !important;
+      }
+      
+      .screen-view-container { 
+          margin: 0 !important; 
+          padding: 0 !important; 
+          display: block !important; 
+          background: transparent !important;
+      }
+      
+      #printable-root { 
+          display: block !important; 
+          width: 100% !important; 
       }
       
       .print-page { 
@@ -306,20 +203,14 @@ const PrintStyles = () => (
           border: none !important; 
           box-shadow: none !important; 
           margin: 0 !important; 
+          padding: 5mm !important;
           page-break-after: always !important; 
           width: 100% !important; 
           height: auto !important; 
-          min-height: auto !important; 
+          min-height: 0 !important; 
       }
-      
       .print-page:last-child { page-break-after: auto !important; }
       
-      .screen-only, .admin-panel-container, .modal-overlay-fix > div:first-child { display: none !important; }
-      html, body { background: white !important; height: auto !important; overflow: visible !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .modal-overlay-fix { position: static !important; width: 100% !important; height: auto !important; background: white !important; overflow: visible !important; z-index: auto !important; display: block !important; }
-      .screen-view-container { display: block !important; padding: 0 !important; margin: 0 !important; background: white !important; }
-      
-      /* İçerik düzenlerinin bozulmaması için gerekli grid/flex ayarları */
       .erp-grid { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 5px !important; }
       .erp-card { display: flex !important; flex-direction: column !important; page-break-inside: avoid !important; }
       
@@ -403,7 +294,6 @@ const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDel
 
     return (
         <div>
-            {/* IPAD 2 UYUMLU FLEX YAPISI */}
             <div className="p-2 flex flex-wrap -mx-1">
                 {visibleItems.map(product => (
                     <div key={product.id} className="w-1/3 md:w-1/4 lg:w-1/6 p-1 relative box-border">
@@ -453,7 +343,6 @@ const SalesCalendar = ({ orders, selectedDate, onDateChange }) => {
                     let gram = 0;
                     if(order.items) order.items.forEach(i => gram += (parseGram(i.gram) * (parseInt(i.quantity) || 1)));
                     data[day].total += gram;
-                    // Object Spread fix
                     data[day].orders.push({ name: order.customerName, gram: gram.toFixed(2) });
                 }
             }
@@ -473,7 +362,6 @@ const SalesCalendar = ({ orders, selectedDate, onDateChange }) => {
         for (let d = 1; d <= daysInMonth; d++) {
             const hasSale = salesData[d];
             const isSelected = selectedDayDetail && selectedDayDetail.day === d;
-            // Object Spread fix: { day: d, ...hasSale } -> Object.assign
             const detailObj = hasSale ? Object.assign({ day: d }, hasSale) : null;
             
             days.push(
@@ -604,7 +492,6 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
     };
 
     useEffect(() => {
-        // Object Spread fix: ...d.data() -> Object.assign
         const unsubUsers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'app_users'), (snap) => {
             const fetchedUsers = snap.docs.map(d => Object.assign({id:d.id}, d.data())).filter(u => u.uid !== currentUserProfile.uid);
             const uniqueUsers = Array.from(new Map(fetchedUsers.map(u => [u.email, u])).values());
@@ -612,7 +499,6 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
         });
         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), orderBy('createdAt', 'asc'));
         const unsubMsgs = onSnapshot(q, (snap) => {
-            // Object Spread fix
             setMessages(snap.docs.map(d => Object.assign({id:d.id}, d.data())).filter(m => (m.senderId === currentUserProfile.uid) || (m.receiverId === currentUserProfile.uid)));
         });
         return () => { unsubUsers(); unsubMsgs(); };
@@ -639,7 +525,6 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
 
     const scrollToBottom = (behavior = 'smooth') => {
          if (scrollContainerRef.current) {
-            // scrollTo eski cihazlarda {options} desteklemez
             scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
          }
     };
@@ -690,7 +575,6 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
     const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); if (e.currentTarget.contains(e.relatedTarget)) { return; } setIsDragOver(false); };
     const handleDrop = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(false); const file = e.dataTransfer.files[0]; if (file) { uploadFile(file); } };
     
-    // Object Spread fix: {...deleteConfig, ...}
     const triggerDelete = (type, id = null) => { setDeleteConfig({ isOpen: true, type, id, title: type === 'all' ? 'Sohbeti Temizle' : 'Mesajı Sil', message: type === 'all' ? 'Bu kişiyle olan TÜM mesajlaşma geçmişini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.' : 'Bu mesajı silmek istediğinize emin misiniz?' }); };
 
     const executeDelete = async () => {
@@ -703,7 +587,6 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
                 await batch.commit();
             }
         } catch(e) { console.error("Silme hatası", e); alert("Bir hata oluştu."); } finally { 
-            // Object Spread fix
             setDeleteConfig(Object.assign({}, deleteConfig, { isOpen: false })); 
         }
     };
@@ -813,8 +696,6 @@ const AIStudio = () => {
 };
 
 const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) => {
-    
-    // Yardımcı: Gram Hesaplama
     const calculateOrderGram = (items) => {
         if (!items) return 0;
         return items.reduce((acc, item) => {
@@ -824,7 +705,6 @@ const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) =
         }, 0);
     };
 
-    // İstatistikler
     const workshopStats = useMemo(() => {
         const preparing = orders.filter(o => o.status === 'preparing');
         const count = preparing.length;
@@ -832,22 +712,19 @@ const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) =
         return { count, totalGram: totalGram.toFixed(2) };
     }, [orders]);
 
-    // Seçili aya göre tamamlanan siparişleri filtrele
     const completedOrdersOfMonth = useMemo(() => {
         return orders.filter(o => {
             if (o.status !== 'delivered') return false;
             if (!o.createdAt || !o.createdAt.seconds) return false;
             const d = new Date(o.createdAt.seconds * 1000);
             return d.getMonth() === dashboardDate.getMonth() && d.getFullYear() === dashboardDate.getFullYear();
-        }).sort((a, b) => b.createdAt.seconds - a.createdAt.seconds); // En yeniden eskiye
+        }).sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
     }, [orders, dashboardDate]);
 
-    // O ayın toplam gramı
     const monthlyTotalGram = useMemo(() => {
         return completedOrdersOfMonth.reduce((acc, o) => acc + calculateOrderGram(o.items), 0);
     }, [completedOrdersOfMonth]);
 
-    // Ay Değiştirme Fonksiyonu
     const changeMonth = (dir) => {
         const newDate = new Date(dashboardDate.getFullYear(), dashboardDate.getMonth() + dir, 1);
         setDashboardDate(newDate);
@@ -859,7 +736,6 @@ const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) =
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
             <h2 className="text-2xl font-bold text-slate-800">Panel Özeti</h2>
             
-            {/* Üst İstatistik Kartları */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                     <div className="text-slate-500 text-sm font-bold mb-1">Toplam Ürün</div>
@@ -873,13 +749,11 @@ const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) =
                 </div>
             </div>
 
-            {/* Grafikler ve Takvim */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <SalesCalendar orders={orders} selectedDate={dashboardDate} onDateChange={setDashboardDate} />
                 <MonthlyPerformanceView orders={orders} selectedDate={dashboardDate} />
             </div>
 
-            {/* YENİ EKLENEN KISIM: AYLIK TAMAMLANAN SİPARİŞ LİSTESİ */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6">
                 <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                     <h3 className="font-bold text-slate-700 flex items-center gap-2">
@@ -887,7 +761,6 @@ const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) =
                         Tamamlanan Siparişler ({monthNames[dashboardDate.getMonth()]} {dashboardDate.getFullYear()})
                     </h3>
                     
-                    {/* Ay Değiştirme Butonları */}
                     <div className="flex items-center gap-2 bg-white border rounded-lg p-1 shadow-sm">
                         <button onClick={() => changeMonth(-1)} className="p-1.5 hover:bg-slate-100 rounded-md text-slate-600 transition-colors" title="Önceki Ay">
                             <ChevronLeft size={20}/>
@@ -1173,24 +1046,15 @@ const AdminSettings = ({ logoUrl, handleLogoUpload }) => (
     </div>
 );
 
-// ==========================================
-// NEW: CATALOGUE COMPONENTS
-// ==========================================
-
 const AdminCatalogueManager = ({ appId, setNotification }) => {
     const [images, setImages] = useState([]);
     const [uploading, setUploading] = useState(false);
-    
-    // Yükleme Seçimleri
     const [selectedCategory, setSelectedCategory] = useState("Yüzük");
     const [selectedSubCategory, setSelectedSubCategory] = useState("AS-B");
-
-    // Sürükle Bırak ve Önizleme State'leri
     const [dragActive, setDragActive] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
 
-    // Verileri çek
     useEffect(() => {
         let q = query(collection(db, 'artifacts', appId, 'public', 'data', 'catalogue_images'), orderBy('createdAt', 'asc'));
         const unsub = onSnapshot(q, (snap) => {
@@ -1200,7 +1064,6 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
         return () => unsub();
     }, [appId]);
 
-    // Gruplama Mantığı
     const groupedImages = useMemo(() => {
         const grouped = {};
         images.forEach(img => {
@@ -1213,7 +1076,6 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
         return grouped;
     }, [images]);
 
-    // Dosya Seçme / Sürükleme Fonksiyonları
     const handleDrag = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1247,24 +1109,19 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
         if (!selectedFile) return;
         setUploading(true);
         try {
-            const safeName = selectedFile.name.replace(/[^a-zA-Z0-9.]/g, "_");
-            const fileName = `catalogue_hd/${Date.now()}_${safeName}`;
-            const storageRef = ref(storage, fileName);
-            
-            const uploadTask = await uploadBytesResumable(storageRef, selectedFile);
-            const downloadUrl = await getDownloadURL(uploadTask.ref);
+            // Firebase Storage CORS/Bilinmeyen Hata sorununu çözmek için Base64'e geçildi.
+            // processFile, resmi yeniden boyutlandırıp kaliteyi düşürerek (optimizasyon) base64 üretir.
+            const processedImage = await processFile(selectedFile);
 
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'catalogue_images'), {
-                imageUrl: downloadUrl,
+                imageUrl: processedImage.base64,
                 category: selectedCategory,
                 subcategory: selectedSubCategory,
                 createdAt: serverTimestamp(),
-                storagePath: fileName,
-                fileName: selectedFile.name // Dosya ismini kaydediyoruz
+                fileName: selectedFile.name
             });
             
             setNotification({ type: 'success', message: 'Fotoğraf yüklendi.' });
-            // Temizle
             setSelectedFile(null);
             setPreviewUrl(null);
         } catch (error) {
@@ -1296,14 +1153,12 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
                 <ImageIcon className="text-blue-500"/> Katalog Yönetimi (HD)
             </h2>
 
-            {/* YENİ SÜRÜKLE BIRAK ALANI */}
             <div className={`bg-white p-6 rounded-xl shadow-sm border transition-all ${selectedFile ? 'border-blue-200 ring-2 ring-blue-100' : 'border-slate-200'}`}>
                 <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
                     <Upload size={16}/> Yeni Fotoğraf Yükle
                 </h3>
                 
                 <div className="flex flex-col gap-4">
-                    {/* Kategori Seçimleri */}
                     <div className="grid grid-cols-2 gap-4">
                          <div>
                             <label className="block text-xs font-bold text-slate-500 mb-1">Kategori</label>
@@ -1335,7 +1190,6 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
                          </div>
                     </div>
 
-                    {/* Drop Zone */}
                     <div 
                         className={`relative w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer overflow-hidden group 
                         ${dragActive ? 'border-yellow-500 bg-yellow-50 scale-[1.01]' : 'border-slate-300 hover:border-yellow-400 hover:bg-slate-50'}
@@ -1365,7 +1219,6 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
                         )}
                     </div>
 
-                    {/* Yükle Butonu */}
                     {selectedFile && (
                         <button 
                             onClick={executeUpload} 
@@ -1379,7 +1232,6 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
                 </div>
             </div>
                 
-            {/* LİSTELEME ALANI */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <div className="text-sm font-bold text-slate-400 mb-4 px-1">Yüklü Fotoğraflar</div>
                 
@@ -1408,7 +1260,6 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
                                     count={items.length} 
                                     level={1}
                                 >
-                                    {/* GRID GÖRÜNÜMÜ - İSİMLERLE BERABER */}
                                     <div className="p-2 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                         {items.map(img => (
                                             <div key={img.id} className="group relative bg-slate-50 rounded-lg border border-slate-200 p-2 hover:shadow-md transition-all">
@@ -1417,7 +1268,6 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
                                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
                                                 </div>
                                                 
-                                                {/* DOSYA İSMİ */}
                                                 <div className="text-[10px] font-bold text-slate-600 truncate text-center" title={img.fileName || "İsimsiz"}>
                                                     {img.fileName || "İsimsiz Dosya"}
                                                 </div>
@@ -1441,23 +1291,19 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
         </div>
     );
 };
+
 const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcategory }) => {
     const [images, setImages] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [loading, setLoading] = useState(true);
-
-    // --- ZOOM & PAN (GEZİNME) STATE'LERİ ---
     const [scale, setScale] = useState(1);
     const [translate, setTranslate] = useState({ x: 0, y: 0 });
-    
-    // --- DOKUNMATİK ETKİLEŞİM STATE'LERİ ---
     const [isDragging, setIsDragging] = useState(false);
-    const [startTouch, setStartTouch] = useState({ x: 0, y: 0 }); // Tek parmak başlangıcı
-    const [startPinchDist, setStartPinchDist] = useState(0); // İki parmak arası mesafe
-    const [startScale, setStartScale] = useState(1); // Pinch başladığındaki zoom oranı
-    const [swipeOffset, setSwipeOffset] = useState(0); // Resim değiştirme sırasındaki kayma miktarı
+    const [startTouch, setStartTouch] = useState({ x: 0, y: 0 });
+    const [startPinchDist, setStartPinchDist] = useState(0);
+    const [startScale, setStartScale] = useState(1);
+    const [swipeOffset, setSwipeOffset] = useState(0);
 
-    // Resim değişince her şeyi sıfırla
     useEffect(() => {
         resetZoom();
     }, [currentIndex]);
@@ -1468,7 +1314,6 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
         setSwipeOffset(0);
     };
 
-    // Verileri Çek
     useEffect(() => {
         if (!isOpen) return;
         setLoading(true);
@@ -1494,7 +1339,6 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
         return () => unsub();
     }, [isOpen, appId, initialCategory, initialSubcategory]);
 
-    // Klavye Kontrolleri
     useEffect(() => {
         if (!isOpen) return;
         const handleKeyDown = (e) => {
@@ -1508,12 +1352,11 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
     }, [isOpen, images.length, onClose]);
 
     const changeImage = (dir) => {
-        resetZoom(); // Değişirken zoomu kapat
+        resetZoom();
         if (dir === 1) setCurrentIndex(prev => (prev + 1) % images.length);
         else setCurrentIndex(prev => (prev - 1 + images.length) % images.length);
     };
 
-    // --- MATEMATİK YARDIMCILARI ---
     const getDistance = (touches) => {
         return Math.hypot(
             touches[0].clientX - touches[1].clientX,
@@ -1521,15 +1364,11 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
         );
     };
 
-    // --- DOKUNMATİK HANDLERLAR (CORE LOGIC) ---
-
     const handleTouchStart = (e) => {
         if (e.touches.length === 1) {
-            // TEK PARMAK: Ya Swipe (değiştirme) ya da Pan (gezme)
             setIsDragging(true);
             setStartTouch({ x: e.touches[0].clientX, y: e.touches[0].clientY });
         } else if (e.touches.length === 2) {
-            // İKİ PARMAK: Pinch Zoom Başlangıcı
             const dist = getDistance(e.touches);
             setStartPinchDist(dist);
             setStartScale(scale);
@@ -1537,52 +1376,61 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
     };
 
     const handleTouchMove = (e) => {
-        // Tarayıcının sayfa kaydırmasını engelle (iPad için kritik)
         e.preventDefault(); 
-
         if (e.touches.length === 1 && isDragging) {
-            // TEK PARMAK HAREKETİ
             const dx = e.touches[0].clientX - startTouch.x;
             const dy = e.touches[0].clientY - startTouch.y;
 
             if (scale > 1) {
-                // Zoomlu iken: Fotoğrafın içinde gezin (Pan)
                 setTranslate(prev => (Object.assign({}, prev, {
-                    x: prev.x + dx * 0.5, // Hassasiyeti düşürmek için 0.5 ile çarptık
+                    x: prev.x + dx * 0.5,
                     y: prev.y + dy * 0.5
                 })));
-                setStartTouch({ x: e.touches[0].clientX, y: e.touches[0].clientY }); // Pozisyonu güncelle
+                setStartTouch({ x: e.touches[0].clientX, y: e.touches[0].clientY });
             } else {
-                // Zoom YOKKEN: Resmi değiştirme efekti (Swipe)
-                // Sadece yatay harekete izin ver
                 setSwipeOffset(dx);
             }
         } else if (e.touches.length === 2) {
-            // İKİ PARMAK HAREKETİ (PINCH ZOOM)
             const dist = getDistance(e.touches);
             if (startPinchDist > 0) {
                 const newScale = startScale * (dist / startPinchDist);
-                // Min 1x, Max 5x olacak şekilde sınırla
                 setScale(Math.min(Math.max(1, newScale), 5));
             }
         }
     };
 
-    const handleTouchEnd = () => {
-        setIsDragging(false);
+    const handleMouseDown = (e) => {
+        setIsDragging(true);
+        setStartTouch({ x: e.clientX, y: e.clientY });
+    };
+
+    const handleMouseMoveMouse = (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startTouch.x;
+        const dy = e.clientY - startTouch.y;
 
         if (scale > 1) {
-            // Zoomlu ise bırakınca bir şey yapma (belki sınırlar eklenebilir)
-            if (scale < 1) setScale(1); // 1'in altına düşerse toparla
+            setTranslate(prev => (Object.assign({}, prev, {
+                x: prev.x + dx * 0.5,
+                y: prev.y + dy * 0.5
+            })));
+            setStartTouch({ x: e.clientX, y: e.clientY });
         } else {
-            // Zoom yoksa ve kaydırma yapıldıysa karar ver
-            const threshold = 100; // Ne kadar çekerse değişsin?
+            setSwipeOffset(dx);
+        }
+    };
+
+    const handleTouchEnd = () => {
+        setIsDragging(false);
+        if (scale > 1) {
+            if (scale < 1) setScale(1); 
+        } else {
+            const threshold = 100;
             if (swipeOffset > threshold) {
-                changeImage(-1); // Önceki
+                changeImage(-1); 
             } else if (swipeOffset < -threshold) {
-                changeImage(1); // Sonraki
+                changeImage(1); 
             } else {
-                // Yeterince çekmediyse yerine geri gelsin
                 setSwipeOffset(0);
             }
         }
@@ -1593,7 +1441,7 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
         if (scale > 1) {
             resetZoom();
         } else {
-            setScale(2.5); // Çift tıkla 2.5x yap
+            setScale(2.5);
         }
     };
 
@@ -1601,11 +1449,9 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
 
     return (
         <div 
-            className="fixed inset-0 z-[500] bg-black flex flex-col items-center justify-center overflow-hidden touch-none"
-            // touch-none: iPad'de tarayıcı hareketlerini engeller
-            style={{ touchAction: 'none' }} 
+            className="fixed inset-0 z-[500] bg-black flex flex-col items-center justify-center overflow-hidden touch-none select-none"
+            style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }} 
         >
-            {/* Kapatma Butonu */}
             <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white z-[510] transition-colors p-2 bg-black/20 rounded-full hover:bg-white/20">
                 <X size={32}/>
             </button>
@@ -1616,22 +1462,23 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
                 </div>
             ) : images.length > 0 ? (
                 <>
-                    {/* Ana Resim Alanı */}
                     <div 
                         className="flex-1 w-full h-full flex items-center justify-center relative p-0 overflow-hidden"
                         onTouchStart={handleTouchStart}
                         onTouchMove={handleTouchMove}
                         onTouchEnd={handleTouchEnd}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMoveMouse}
+                        onMouseUp={handleTouchEnd}
+                        onMouseLeave={handleTouchEnd}
                         onDoubleClick={handleDoubleTap}
                     >
                         <div 
                             style={{ 
-                                // CSS Transform ile hareketleri uygula
-                                // Eğer zoom yoksa swipeOffset'i kullan, zoom varsa translate ve scale'i kullan
                                 transform: scale === 1 
                                     ? `translateX(${swipeOffset}px)` 
                                     : `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
-                                transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)', // Bırakınca yumuşak geçiş
+                                transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
                                 width: '100%',
                                 height: '100%',
                                 display: 'flex',
@@ -1644,10 +1491,10 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
                                 className="max-w-full max-h-full object-contain select-none shadow-2xl pointer-events-none" 
                                 key={currentIndex} 
                                 alt="Katalog"
+                                onDragStart={(e) => e.preventDefault()}
                             />
                         </div>
                         
-                        {/* Oklar (Sadece zoom yoksa göster) */}
                         {scale === 1 && (
                             <>
                                 <button onClick={(e) => { e.stopPropagation(); changeImage(-1); }} className="hidden md:block absolute left-4 text-white/30 hover:text-white transition-all p-4 hover:bg-white/10 rounded-full group-hover:opacity-100"><ChevronLeft size={48}/></button>
@@ -1656,7 +1503,6 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
                         )}
                     </div>
                     
-                    {/* Alt Küçük Resim Şeridi */}
                     <div className="absolute bottom-0 left-0 w-full h-20 md:h-24 bg-gradient-to-t from-black via-black/90 to-transparent flex items-center gap-2 overflow-x-auto px-4 py-2 scrollbar-hide z-50">
                         {images.map((img, idx) => (
                             <button key={idx} onClick={() => { setCurrentIndex(idx); resetZoom(); }} className={`shrink-0 w-12 h-12 md:w-16 md:h-16 rounded-lg overflow-hidden border-2 transition-all relative ${idx === currentIndex ? 'border-yellow-500 scale-105 opacity-100' : 'border-transparent opacity-40 hover:opacity-100'}`}>
@@ -1665,7 +1511,6 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
                         ))}
                     </div>
                     
-                    {/* Bilgi Çubuğu */}
                     <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full text-white/70 text-xs font-bold border border-white/10 flex items-center gap-2 pointer-events-none z-[510]">
                         <span>{initialCategory}</span>
                         {initialSubcategory !== "Hepsi" && <><ChevronRight size={12} className="opacity-50"/><span>{initialSubcategory}</span></>}
@@ -1682,9 +1527,7 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
         </div>
     );
 };
-// ==========================================
-// ADMIN CONTENT LAYOUT
-// ==========================================
+
 const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, onClose, handleDeleteProduct, handleUpdateStatus, setNotification, onCreateNewOrder, onViewOrder, handleDeleteOrder, logoUrl, handleUpdateLogo }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [dashboardDate, setDashboardDate] = useState(new Date());
@@ -1708,9 +1551,8 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
 
     const startEditing = useCallback((product) => {
         setEditingId(product.id);
-        // Object Spread fix
         setNewProduct(Object.assign({}, { code: product.code, gram: product.gram, category: product.category, subcategory: product.subcategory || 'Genel', imageUrl: product.imageUrl, imageFile: null }));
-        if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0; // .scrollTo yerine .scrollTop
+        if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0; 
     }, []);
 
     const cancelEditing = useCallback(() => { setEditingId(null); setNewProduct({ code: '', gram: '', category: 'Yüzük', subcategory: 'AS-B', imageUrl: '', imageFile: null }); }, []);
@@ -1732,7 +1574,6 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
         try {
             let finalImageUrl = newProduct.imageUrl || logoUrl || DEFAULT_LOGO_URL;
             if (newProduct.imageFile) finalImageUrl = (await processFile(newProduct.imageFile)).base64;
-            // Object Spread fix
             const productData = Object.assign({}, { code: newProduct.code, gram: newProduct.gram, category: newProduct.category, subcategory: newProduct.subcategory, imageUrl: finalImageUrl });
             if (editingId) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', editingId), Object.assign({}, productData, { updatedAt: serverTimestamp() })); setNotification({ type: 'success', message: 'Ürün güncellendi' }); setEditingId(null); } 
             else { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'products'), Object.assign({}, productData, { createdAt: serverTimestamp() })); setNotification({ type: 'success', message: 'Ürün eklendi' }); }
@@ -1742,7 +1583,6 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
 
     return (
         <div className="flex flex-col md:flex-row h-screen bg-slate-100">
-             
             <div className="md:w-64 bg-slate-900 text-white flex flex-col flex-shrink-0">
                 <div className="p-6 border-b border-slate-800 flex flex-col items-center">
                     <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-3 text-2xl font-bold text-yellow-500 overflow-hidden border-2 border-slate-700">{user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover"/> : user.email[0].toUpperCase()}</div>
@@ -1780,9 +1620,6 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
     );
 };
 
-// ==========================================
-// STORE COMPONENTS
-// ==========================================
 const ProductCard = React.memo(({ product, onAddToCart, logoUrl }) => (
   <div className="bg-white rounded-lg shadow-md overflow-hidden border border-slate-100 hover:shadow-xl transition-all duration-300 group flex flex-col h-full relative">
     <div className="aspect-square w-full bg-slate-100 relative overflow-hidden">
@@ -1797,7 +1634,6 @@ const ProductCard = React.memo(({ product, onAddToCart, logoUrl }) => (
   </div>
 ));
 
-// ... (ProductModal, UserProfileModal, OrderPreviewModal - Keeping existing code logic)
 const ProductModal = ({ product, isOpen, onClose, onConfirm }) => {
     const [quantity, setQuantity] = useState(1);
     const [size, setSize] = useState("");
@@ -1813,7 +1649,6 @@ const ProductModal = ({ product, isOpen, onClose, onConfirm }) => {
                         <div><label className="block text-xs font-bold text-slate-500 mb-1">Adet</label><input type="number" min="1" value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 0))} className="w-full border-2 border-slate-100 rounded-xl p-3 text-center font-bold text-slate-800"/></div>
                         <div><label className="block text-xs font-bold text-slate-500 mb-1">Boy / Ölçü</label><input type="text" value={size} onChange={(e) => setSize(e.target.value)} placeholder="Standart" className="w-full border-2 border-slate-100 rounded-xl p-3 text-center font-bold text-slate-800"/></div>
                     </div>
-                    {/* Object Spread fix */}
                     <button onClick={()=>{onConfirm(Object.assign({}, product, { quantity, selectedSize: size })); onClose();}} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 flex items-center justify-center gap-2 shadow-lg active:scale-95"><Plus size={20} /> Listeye Ekle</button>
                 </div>
             </div>
@@ -1853,18 +1688,7 @@ const UserProfileModal = ({ user, isOpen, onClose }) => {
         setLoading(true); 
         try { 
             let finalPhotoUrl = photo;
-
-            if (photo && photo.startsWith('data:')) {
-                const storageRef = ref(storage, `profile_photos/${user.uid}/profile_${Date.now()}.jpg`);
-                
-                // ESKİ SAFARİ İÇİN KRİTİK DEĞİŞİKLİK
-                // fetch(photo) yerine fetchBlobXHR kullanıyoruz
-                const blob = await fetchBlobXHR(photo);
-
-                const uploadTask = await uploadBytesResumable(storageRef, blob);
-                finalPhotoUrl = await getDownloadURL(uploadTask.ref);
-            }
-
+            // Profil fotoğrafları Firebase Storage hatası vermemesi için doğrudan Base64 ile güncellendi
             await updateProfile(user, { displayName: name, photoURL: finalPhotoUrl }); 
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid), { 
                 uid: user.uid, 
@@ -1969,7 +1793,6 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                 const p = products.find(p => p.code && p.code.toString().trim().toLowerCase() === codeToFind);
                 if (p) img = p.imageUrl;
             }
-            // Object Spread fix
             return Object.assign({}, item, { _tempId: idx, imageUrl: img || logoUrl });
         }));
 
@@ -1981,10 +1804,8 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
         setOrderDate((draftData && draftData.orderDate) || new Date().toISOString().split('T')[0]); setDeliveryDate((draftData && draftData.deliveryDate) || "");
         let initialItems = [];
         if (cart && cart.length > 0) { 
-            // Object Spread fix
             initialItems = cart.map((item, idx) => Object.assign({}, item, { _tempId: idx, imageUrl: item.imageUrl || logoUrl })); 
         } else if (draftData && draftData.items && draftData.items.length > 0) { 
-            // Object Spread fix
             initialItems = draftData.items.map(item => Object.assign({}, item, { imageUrl: item.imageUrl || logoUrl })); 
         } else { 
             initialItems = Array.from({ length: 12 }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `manual_${i}` })); 
@@ -2012,7 +1833,6 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   const handleItemUpdate = (index, field, value) => { 
       setEditableItems(prev => { 
           const newItems = [...prev]; 
-          // Object Spread fix
           let newItem = Object.assign({}, newItems[index], { [field]: value }); 
           
           if (field === 'code') { 
@@ -2037,20 +1857,25 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   const handleLocalRemove = (index) => { const item = editableItems[index]; if (!isViewingOldOrder && item && item.cartId) { onRemoveItem(item.cartId); } setEditableItems(prev => { const n = [...prev]; n[index] = { code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `cleared_${Date.now()}_${Math.random()}` }; return n; }); };
   
   const updateAllItems = (field, value) => {
-    // Object Spread fix
     setEditableItems(prev => prev.map(item => item.code ? Object.assign({}, item, { [field]: value }) : item));
     if (field === 'selectedKarat') { setOrderKarat(value); updateDraft('orderKarat', value); }
     if (field === 'selectedColor') { setGlobalColor(value); }
   };
 
-  const handleSaveOrder = (status = 'new') => { if(!customerName) return window.alert("Firma Adı Giriniz"); if(!orderKarat) return window.alert("Lütfen sipariş ayarını seçiniz!"); if(!deliveryDate) return window.alert("Lütfen teslim tarihini giriniz!"); 
-    // Object Destructuring remove
+  const handleSaveOrder = (status = 'new') => { 
+    if(!customerName) return window.alert("Firma Adı Giriniz"); 
+    if(!orderKarat) return window.alert("Lütfen sipariş ayarını seçiniz!"); 
+    if(!deliveryDate) return window.alert("Lütfen teslim tarihini giriniz!"); 
+    
     const cleanItems = editableItems.filter(item => item.code && item.code.trim() !== "").map((item) => {
         const copy = Object.assign({}, item);
         delete copy._tempId;
         return copy;
     }); 
-    if (cleanItems.length === 0) return window.alert("Lütfen en az 1 ürün giriniz."); if (isViewingOldOrder && onUpdateOrder) onUpdateOrder(initialData.id, { customerName, customerPhone, orderKarat, orderStamp, deliveryDate, customOrderNo: orderNo, items: cleanItems, status: status === 'new' ? 'new' : initialData.status }); else onCreateOrder(customerName, customerPhone, "", deliveryDate, orderKarat, orderNo, orderStamp, cleanItems, status, orderDate); };
+    if (cleanItems.length === 0) return window.alert("Lütfen en az 1 ürün giriniz."); 
+    if (isViewingOldOrder && onUpdateOrder) onUpdateOrder(initialData.id, { customerName, customerPhone, orderKarat, orderStamp, deliveryDate, customOrderNo: orderNo, items: cleanItems, status: status === 'new' ? 'new' : initialData.status }); 
+    else onCreateOrder(customerName, customerPhone, "", deliveryDate, orderKarat, orderNo, orderStamp, cleanItems, status, orderDate); 
+  };
   
   if (!isOpen) return null;
   const FIRST_PAGE_ITEMS = 12; const OTHER_PAGE_ITEMS = 12; const pages = []; let itemsForPagination = [...editableItems];
@@ -2058,15 +1883,17 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-sm overflow-y-auto modal-overlay-fix">
-      <div className="fixed top-0 left-0 w-full bg-slate-800 p-4 z-[110] flex justify-between items-center no-print shadow-lg">
+      <div className="fixed top-0 left-0 w-full bg-slate-800 p-4 z-[110] flex flex-wrap justify-between items-center gap-2 no-print shadow-lg">
         <div className="text-white font-bold flex items-center gap-2"><Printer size={20} className="text-yellow-500"/> SİPARİŞ BELGESİ</div>
-        <div className="flex gap-3">
-           <button onClick={()=>{if (!isViewingOldOrder && setDraftData) setDraftData(prev => (Object.assign({}, prev, { items: editableItems }))); onClose();}} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2">KAPAT</button>
-           <button onClick={()=>{if(!customerName) return window.alert("Firma Adı giriniz."); window.print();}} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2">YAZDIR</button>
-           {isEditable && <button onClick={() => handleSaveOrder('new')} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2">OLUŞTUR</button>}
+        <div className="flex flex-wrap gap-2">
+           <button onClick={()=>{if (!isViewingOldOrder && setDraftData) setDraftData(prev => (Object.assign({}, prev, { items: editableItems }))); onClose();}} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-colors">KAPAT</button>
+           
+           <button onClick={()=>{if(!customerName) return window.alert("Firma Adı giriniz."); window.print();}} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-colors"><Printer size={16}/> PDF / YAZDIR</button>
+           
+           {isEditable && <button onClick={() => handleSaveOrder('new')} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-colors">OLUŞTUR</button>}
         </div>
       </div>
-      <div className="mt-20 pb-10 flex flex-col items-center screen-view-container">
+      <div className="mt-24 pb-10 flex flex-col items-center screen-view-container">
         <div id="printable-root" className="flex flex-col items-center gap-8">
             {pages.map((pageItems, pageIndex) => (
             <div key={pageIndex} className="print-page screen-page">
@@ -2076,15 +1903,15 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                             <h1 className="text-4xl font-bold tracking-widest text-black uppercase">SAHRA</h1>
                             <p className="text-xl font-bold text-yellow-600 tracking-[0.3em] uppercase mt-1">KUYUMCULUK</p>
                         </div>
-                        <div className="border border-black p-2 rounded text-right">
-                            <div className="text-[10px] font-bold mb-1 leading-tight">
+                        <div className="border border-black p-2 rounded text-right bg-white">
+                            <div className="text-[10px] font-bold mb-1 leading-tight text-black">
                                 {Object.entries(orderStats.catBreakdown).length > 0 ? (
                                     Object.entries(orderStats.catBreakdown).map(([cat, count]) => `${count} ${cat}`).join(', ')
                                 ) : (
                                     <span className="italic">Ürün Yok</span>
                                 )}
                             </div>
-                            <div className="text-sm font-bold border-t border-black pt-1 mt-1">
+                            <div className="text-sm font-bold border-t border-black pt-1 mt-1 text-black">
                                 {orderStats.totalGr.toFixed(2)} Gr
                             </div>
                         </div>
@@ -2109,17 +1936,17 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                             {isEditable && (
                                 <div className="no-print bg-yellow-50 p-3 rounded border border-yellow-200 mt-2 relative grid grid-cols-2 gap-3 shadow-inner">
                                     <div className="flex flex-col gap-2">
-                                        <input value={customerName} onChange={e=>{setCustomerName(e.target.value.toUpperCase()); updateDraft('customerName', e.target.value);}} placeholder="FİRMA ADI *" className="p-2 border rounded font-bold text-sm w-full"/>
-                                        <input value={orderNo} onChange={e=>{setOrderNo(e.target.value); updateDraft('customOrderNo', e.target.value);}} placeholder="SİPARİŞ NO" className="p-2 border rounded font-bold text-sm w-full"/>
+                                        <input value={customerName} onChange={e=>{setCustomerName(e.target.value.toUpperCase()); updateDraft('customerName', e.target.value);}} placeholder="FİRMA ADI *" className="p-2 border rounded font-bold text-sm w-full text-black"/>
+                                        <input value={orderNo} onChange={e=>{setOrderNo(e.target.value); updateDraft('customOrderNo', e.target.value);}} placeholder="SİPARİŞ NO" className="p-2 border rounded font-bold text-sm w-full text-black"/>
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <div className="flex gap-2">
-                                            <input type="date" value={orderDate} onChange={e=>{setOrderDate(e.target.value); updateDraft('orderDate', e.target.value);}} title="Sipariş Tarihi" className="p-2 border rounded text-sm w-1/2"/> 
-                                            <input type="date" min={new Date().toISOString().split('T')[0]} value={deliveryDate} onChange={e=>{setDeliveryDate(e.target.value); updateDraft('deliveryDate', e.target.value);}} title="Teslim Tarihi" className="p-2 border rounded text-sm w-1/2"/> 
+                                            <input type="date" value={orderDate} onChange={e=>{setOrderDate(e.target.value); updateDraft('orderDate', e.target.value);}} title="Sipariş Tarihi" className="p-2 border rounded text-sm w-1/2 text-black"/> 
+                                            <input type="date" min={new Date().toISOString().split('T')[0]} value={deliveryDate} onChange={e=>{setDeliveryDate(e.target.value); updateDraft('deliveryDate', e.target.value);}} title="Teslim Tarihi" className="p-2 border rounded text-sm w-1/2 text-black"/> 
                                         </div>
                                         <div className="flex gap-2">
-                                            <select value={orderKarat} onChange={e => updateAllItems('selectedKarat', e.target.value)} className="p-2 border rounded bg-white font-bold text-sm w-full"> <option value="" disabled>Ayar Seç (Tümü)</option> {KARAT_OPTIONS.map(k=><option key={k} value={k}>{k}</option>)} </select>
-                                            <select value={globalColor} onChange={e => updateAllItems('selectedColor', e.target.value)} className="p-2 border rounded bg-white font-bold text-sm w-full"> <option value="">Renk Seç (Tümü)</option> {COLOR_OPTIONS.map(c=><option key={c} value={c}>{c}</option>)} </select>
+                                            <select value={orderKarat} onChange={e => updateAllItems('selectedKarat', e.target.value)} className="p-2 border rounded bg-white font-bold text-sm w-full text-black"> <option value="" disabled>Ayar Seç (Tümü)</option> {KARAT_OPTIONS.map(k=><option key={k} value={k}>{k}</option>)} </select>
+                                            <select value={globalColor} onChange={e => updateAllItems('selectedColor', e.target.value)} className="p-2 border rounded bg-white font-bold text-sm w-full text-black"> <option value="">Renk Seç (Tümü)</option> {COLOR_OPTIONS.map(c=><option key={c} value={c}>{c}</option>)} </select>
                                         </div>
                                     </div>
                                 </div>
@@ -2136,40 +1963,49 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                         <div className="erp-image-area"><img src={item.imageUrl || logoUrl || DEFAULT_LOGO_URL} alt="Ürün" /></div>
                         <div className="erp-details-area">
                             <div className="erp-header"> 
-                                {!isEditable ? item.code : (
+                                {!isEditable ? <span className="font-bold text-[11px] text-black tracking-wide">{item.code}</span> : (
                                     <input 
                                         type="text" 
                                         autoComplete="off"
-                                        className="w-full text-center bg-transparent outline-none font-bold" 
+                                        className="w-full text-center bg-transparent outline-none font-bold text-black" 
                                         value={item.code} 
                                         onChange={(e) => handleItemUpdate(globalIndex, 'code', e.target.value)} 
                                     />
                                 )} 
                             </div>
-                            <div className="erp-compact-row"><div className="flex gap-1">Adet:{!isEditable ? item.quantity : <input type="number" className="w-6 text-center font-bold bg-transparent outline-none" value={item.quantity} onChange={(e) => handleItemUpdate(globalIndex, 'quantity', parseInt(e.target.value) || 1)} />}</div><div className="flex gap-1">Gr:{!isEditable ? item.gram : <input type="text" className="w-8 text-center bg-transparent outline-none" value={item.gram} onChange={(e) => handleItemUpdate(globalIndex, 'gram', e.target.value)} />}</div></div>
+                            <div className="erp-compact-row">
+                                <div className="flex gap-1 items-center">
+                                    <span className="text-[9px] shrink-0 text-black">Adet:</span>
+                                    {!isEditable ? <span className="font-bold text-[11px] text-black">{item.quantity}</span> : <input type="number" className="w-8 text-center font-bold bg-transparent outline-none text-[11px] text-black" value={item.quantity} onChange={(e) => handleItemUpdate(globalIndex, 'quantity', parseInt(e.target.value) || 1)} />}
+                                </div>
+                                <div className="flex gap-1 items-center">
+                                    <span className="text-[9px] shrink-0 text-black">Gr:</span>
+                                    {!isEditable ? <span className="font-bold text-[11px] text-black">{item.gram}</span> : <input type="text" className="w-10 text-center font-bold bg-transparent outline-none text-[11px] text-black" value={item.gram} onChange={(e) => handleItemUpdate(globalIndex, 'gram', e.target.value)} />}
+                                </div>
+                            </div>
                             <div className="erp-compact-row" style={{borderBottom:'none'}}>
                                 <div className="flex w-full h-full items-center">
-                                    <span className="text-[9px] mr-1 shrink-0">Boy:</span>
+                                    <span className="text-[9px] mr-1 shrink-0 text-black">Boy:</span>
                                     {!isEditable ? (
-                                        <span className="flex-1 text-center font-bold text-[9px]">{item.selectedSize}</span>
+                                        <span className="flex-1 text-center font-bold text-[10px] text-black">{item.selectedSize}</span>
                                     ) : (
-                                        <input type="text" className="flex-1 w-full h-full text-center bg-transparent outline-none text-[9px] font-bold min-w-0" value={item.selectedSize || ''} onChange={(e) => handleItemUpdate(globalIndex, 'selectedSize', e.target.value)} />
+                                        <input type="text" className="flex-1 w-full h-full text-center bg-transparent outline-none text-[10px] font-bold text-black min-w-0" value={item.selectedSize || ''} onChange={(e) => handleItemUpdate(globalIndex, 'selectedSize', e.target.value)} />
                                     )}
                                 </div>
                             </div>
                             <div className="erp-note">
                                 <div className="flex w-full border-b border-black/10 pb-0.5 mb-0.5">
                                     <div className="flex-1 border-r border-black/10">
-                                         {!isEditable ? item.selectedKarat : <select className="w-full h-full bg-transparent text-[7px] outline-none text-center font-bold" value={item.selectedKarat} onChange={(e)=>handleItemUpdate(globalIndex, 'selectedKarat', e.target.value)}><option value="">Ayar</option>{KARAT_OPTIONS.map(k=><option key={k} value={k}>{k}</option>)}</select>}
+                                         {!isEditable ? <span className="font-bold text-[9px] text-black">{item.selectedKarat}</span> : <select className="w-full h-full bg-transparent text-[8px] outline-none text-center font-bold text-black" value={item.selectedKarat} onChange={(e)=>handleItemUpdate(globalIndex, 'selectedKarat', e.target.value)}><option value="">Ayar</option>{KARAT_OPTIONS.map(k=><option key={k} value={k}>{k}</option>)}</select>}
                                     </div>
                                     <div className="flex-1">
-                                         {!isEditable ? item.selectedColor : <select className="w-full h-full bg-transparent text-[7px] outline-none text-center font-bold" value={item.selectedColor} onChange={(e)=>handleItemUpdate(globalIndex, 'selectedColor', e.target.value)}><option value="">Renk</option>{COLOR_OPTIONS.map(c=><option key={c} value={c}>{c}</option>)}</select>}
+                                         {!isEditable ? <span className="font-bold text-[9px] text-black">{item.selectedColor}</span> : <select className="w-full h-full bg-transparent text-[8px] outline-none text-center font-bold text-black" value={item.selectedColor} onChange={(e)=>handleItemUpdate(globalIndex, 'selectedColor', e.target.value)}><option value="">Renk</option>{COLOR_OPTIONS.map(c=><option key={c} value={c}>{c}</option>)}</select>}
                                     </div>
                                 </div>
                                 {!isEditable ? (
-                                    <span className="w-full text-center text-red-600 font-bold block bg-transparent text-[8px] leading-tight">{item.note}</span>
+                                    <span className="w-full text-center text-red-600 font-bold block bg-transparent text-[9px] leading-tight">{item.note}</span>
                                 ) : (
-                                    <input type="text" className="w-full text-center text-red-600 font-bold bg-transparent outline-none" placeholder="NOT" value={item.note || ""} onChange={(e) => handleItemUpdate(globalIndex, 'note', e.target.value)} />
+                                    <input type="text" className="w-full text-center text-red-600 font-bold bg-transparent outline-none text-[9px]" placeholder="NOT" value={item.note || ""} onChange={(e) => handleItemUpdate(globalIndex, 'note', e.target.value)} />
                                 )}
                             </div>
                         </div>
@@ -2177,7 +2013,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                     </div>
                 )})}
                 </div>
-                {(pageIndex === pages.length - 1) && <div className="footer-summary text-xs font-bold flex justify-between border-t-2 border-black pt-2"><div>TOPLAM ADET: {orderStats.totalQty}</div><div>TOPLAM GRAM: {orderStats.totalGr.toFixed(2)} gr</div></div>}
+                {(pageIndex === pages.length - 1) && <div className="footer-summary text-xs font-bold flex justify-between border-t-2 border-black pt-2 text-black"><div>TOPLAM ADET: {orderStats.totalQty}</div><div>TOPLAM GRAM: {orderStats.totalGr.toFixed(2)} gr</div></div>}
             </div>
             ))}
             {isEditable && (
@@ -2186,7 +2022,6 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                         onClick={() => {
                             setEditableItems(prev => {
                                 const currentLen = prev.length;
-                                // Her sayfa artık 12 ürün
                                 const pageLimit = 12;
                                 let addCount = 0;
                                 
@@ -2218,13 +2053,10 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   );
 };
 
-// ==========================================
-// STORE VIEW (UPDATED FOR RESPONSIVENESS)
-// ==========================================
 const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, setIsOrderPreviewOpen, handleCheckout, removeFromCart, orderKarat, user, setIsAdminOpen, setShowLogin, setSelectedProduct, onLogin, currentUserData, logoUrl, onOpenCatalogue }) => {
   const [activeCategory, setActiveCategory] = useState("Anasayfa");
   const [activeSubCategory, setActiveSubCategory] = useState("Hepsi"); 
-  const [expandedCategory, setExpandedCategory] = useState(null); // YENİ: Açılır menü durumu
+  const [expandedCategory, setExpandedCategory] = useState(null); 
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [loginStep, setLoginStep] = useState('welcome');
@@ -2233,7 +2065,6 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [showEmptyCartModal, setShowEmptyCartModal] = useState(false);
   
-  // NEW: Mobile menu state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   const ITEMS_PER_PAGE = 24;
@@ -2297,7 +2128,6 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
         )}
         {isAccountModalOpen && <UserProfileModal user={user} isOpen={isAccountModalOpen} onClose={() => setIsAccountModalOpen(false)} />}
         
-        {/* Mobile Sidebar Overlay */}
         {isMobileMenuOpen && (
             <div 
                 className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm transition-opacity"
@@ -2305,7 +2135,6 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
             ></div>
         )}
 
-        {/* SIDEBAR - RESPONSIVE */}
         <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 shadow-xl transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
             <div className="p-6 border-b border-slate-800 flex flex-col items-center">
                 <div className="w-full flex justify-end md:hidden mb-2">
@@ -2327,7 +2156,6 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                             {expandedCategory === cat ? <ChevronDown size={14} className="text-yellow-500"/> : <ChevronRight size={14} className="opacity-50"/>}
                         </button>
                         
-                        {/* Alt kategoriler açıldığında görünür */}
                         {expandedCategory === cat && SUBCATEGORIES[cat] && (
                             <div className="bg-slate-950/50 py-2 space-y-1">
                                 {SUBCATEGORIES[cat].map(sub => (
@@ -2349,7 +2177,6 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                 ))}
             </div>
             
-            {/* Admin Panel Link */}
             {currentUserData?.role === 'admin' && (
                 <div className="p-4 border-t border-slate-800 bg-slate-950">
                     <button onClick={() => setIsAdminOpen(true)} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-bold transition-colors">
@@ -2362,7 +2189,6 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
         <div className="flex-1 flex flex-col bg-slate-50 relative overflow-hidden w-full">
             <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shadow-sm z-10 shrink-0">
                 <div className="flex items-center gap-2 md:gap-4 flex-1">
-                    {/* Mobile Menu Button */}
                     <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg">
                         <Menu size={24} />
                     </button>
@@ -2380,7 +2206,6 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                         </div>
                     )}
                     
-                    {/* Catalogue Mode Button - Only show if NOT on homepage */}
                     {activeCategory !== 'Anasayfa' && (
                         <>
                             <button 
@@ -2436,12 +2261,12 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                     <div className={activeCategory === 'Anasayfa' ? 'animate-in fade-in slide-in-from-bottom-8 duration-500 mt-4' : ''}>
                         <div className="mb-4 flex items-center justify-end"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} /></div>
                         <div className="flex flex-wrap -mx-2">
-    {paginatedProducts.map(product => (
-        <div key={product.id} className="w-1/2 md:w-1/4 lg:w-1/5 p-2 box-border">
-            <ProductCard product={product} onAddToCart={setSelectedProduct} logoUrl={logoUrl} />
-        </div>
-    ))}
-</div>
+                            {paginatedProducts.map(product => (
+                                <div key={product.id} className="w-1/2 md:w-1/4 lg:w-1/5 p-2 box-border">
+                                    <ProductCard product={product} onAddToCart={setSelectedProduct} logoUrl={logoUrl} />
+                                </div>
+                            ))}
+                        </div>
                         {paginatedProducts.length === 0 && <div className="text-center py-20 text-slate-400">Ürün bulunamadı.</div>}
                         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                     </div>
@@ -2468,11 +2293,9 @@ const App = () => {
     const [currentUserData, setCurrentUserData] = useState({});
     const [draftData, setDraftData] = useState({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] });
     
-    // Katalog Modu State'leri
     const [isCatalogueOpen, setIsCatalogueOpen] = useState(false);
     const [catalogueParams, setCatalogueParams] = useState({ category: 'Anasayfa', subcategory: 'Hepsi' });
 
-    // Logo ve Başlık Güncelleme
     useEffect(() => {
         document.title = "Sahra Kuyumculuk"; 
         const targetLogo = logoUrl || DEFAULT_LOGO_URL;
@@ -2492,7 +2315,6 @@ const App = () => {
         favicon.href = targetLogo;
     }, [logoUrl]);
 
-    // Auth Başlatma
     useEffect(() => {
         const initAuth = async () => { 
             try {
@@ -2501,7 +2323,6 @@ const App = () => {
                 } 
             } catch (error) {
                 console.error("Auth initialization failed:", error);
-                window.globalErrorLog.push("Auth Init Hatası: " + error.message);
             }
         };
         initAuth();
@@ -2515,7 +2336,6 @@ const App = () => {
         return () => unsubscribe();
     }, []);
 
-    // Online Durumu
     useEffect(() => {
         if (!user) return;
         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
@@ -2527,24 +2347,19 @@ const App = () => {
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', handleTabClose); handleTabClose(); };
     }, [user]);
 
-    // Veri Çekme 
     useEffect(() => {
         if (!user) return;
 
-        // 1. ÜRÜNLERİ ÇEK (Anlık Takip)
         const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => {
             const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             setProducts(list);
         });
 
-        // 2. SİPARİŞLERİ ÇEK (Tarih Sıralı)
-        // Timestamp formatında geleceği için Özet sayfası artık bozulmayacak
         const qOrders = query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc'));
         const unsubOrders = onSnapshot(qOrders, (snap) => {
             setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
 
-        // 3. KULLANICIYI ÇEK
         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid);
         const unsubUser = onSnapshot(userRef, (docSnap) => {
             if (docSnap.exists()) {
@@ -2557,28 +2372,23 @@ const App = () => {
             unsubOrders();
             unsubUser();
         };
-    }, [user, appId]);
+    }, [user]);
 
     const handleAdminLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); setNotification({type:'success', message:'Giriş başarılı'}); } catch (err) { setNotification({type:'error', message:'Giriş başarısız: ' + err.message}); } };
     const handleUpdateLogo = async (newLogoBase64) => { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'general'), { logoUrl: newLogoBase64, updatedAt: serverTimestamp() }, { merge: true }); };
     const handleAddToCart = useCallback((product) => { setCart(prev => [...prev, { ...product, cartId: Date.now() }]); setNotification({ type: 'success', message: `${product.code} sepete eklendi` }); if(cart.length === 0) setOrderKarat(product.selectedKarat); }, [cart.length]);
     const removeFromCart = useCallback((cartId) => { setCart(prev => { const newCart = prev.filter(item => item.cartId !== cartId); if(newCart.length === 0) setOrderKarat(null); return newCart; }); }, []);
     
-    // SİPARİŞ OLUŞTURMA 
     const handleCheckout = useCallback(async (name, phone, note, deliveryDate, karat, orderNo, orderStamp, items = null, targetStatus = 'new', finalOrderDate) => { 
         if(cart.length === 0 && (!items || items.length === 0)) return; 
         if (!user) { alert("Oturum açılıyor..."); return; } 
         try { 
             const itemsToSave = (items || cart).map(item => { const { _tempId, imageUrl, imageFile, ...rest } = item; return rest; }); 
             
-            // SAAT DÜZELTME:
-            // Eğer seçilen tarih BUGÜN ise, şu anki saati (serverTimestamp) kullan.
-            // Böylece saat 03:00 olarak görünmez, gerçek saat görünür.
             let creationTime = serverTimestamp();
             if (finalOrderDate) {
                 const today = new Date().toISOString().split('T')[0];
                 if (finalOrderDate !== today) {
-                    // Eğer geçmiş/gelecek bir tarih seçildiyse o günün başını al
                     creationTime = new Date(finalOrderDate);
                 }
             }
@@ -2588,7 +2398,7 @@ const App = () => {
                 customerPhone: phone, 
                 totalNote: note, 
                 items: itemsToSave, 
-                createdAt: creationTime, // Düzeltilmiş saat
+                createdAt: creationTime, 
                 status: targetStatus, 
                 deliveryDate: deliveryDate, 
                 orderKarat: karat, 
