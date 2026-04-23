@@ -2145,18 +2145,19 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 
           setSearchImagePreview(compressedBase64);
 
-          // KENDİ API ANAHTARINIZ (ESLint hatasını önlemek için doğrudan tanımladık)
+          // Kendi API Anahtarınız
           const apiKey = "AIzaSyAHfW1psj_PV-hdmsMDaVQPxnnC0xK5Yx0"; 
 
           const base64Data = compressedBase64.split(',')[1];
           const inventoryCodes = products.map(p => p.code).filter(Boolean);
           const inventoryList = inventoryCodes.length > 0 ? inventoryCodes.join(", ") : "Stokta ürün yok";
           
-          const prompt = `Sen uzman bir mücevher asistanısın. Fotoğraftaki takıyı incele. Mevcut stok kodlarımız şunlardır: ${inventoryList}. Görev: Fotoğraftaki takıya form, tarz ve tasarım olarak EN ÇOK BENZEYEN stok kodlarını bul. En fazla 6 adet kod seç.`;
+          const prompt = `Sen uzman bir mücevher asistanısın. Fotoğraftaki takıyı incele.\nMevcut stok kodlarımız şunlardır: ${inventoryList}.\nGörev: Fotoğraftaki takıya form, tarz ve tasarım olarak EN ÇOK BENZEYEN stok kodlarını bul.\nEn fazla 6 adet kod seç.`;
 
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+          // Google AI Studio'daki Halka Açık, Çalışan Standart Model
+          const model = "gemini-1.5-flash";
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-          // YENİLİK: Regex temizleme işkencesinden kurtulmak için JSON yanıtı istiyoruz
           const payload = {
               contents: [{ role: "user", parts: [ { text: prompt }, { inlineData: { mimeType: "image/jpeg", data: base64Data } } ] }],
               generationConfig: {
@@ -2181,7 +2182,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 
           if (!res.ok) {
               const errText = await res.text();
-              throw new Error(`HTTP ${res.status}: ${errText}`);
+              throw new Error(`API Hatası (${res.status}): ${errText}`);
           }
 
           const result = await res.json();
@@ -2194,10 +2195,11 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
               return;
           }
 
-          // Çıkan sonucu eşleştiriyoruz (Regex hatası tamamen kalktı)
           const matchedProducts = products.filter(p => 
               p.code && suggestedCodes.some(sc => 
-                  p.code.toLowerCase().trim() === sc.toLowerCase().trim()
+                  p.code.toLowerCase() === sc || 
+                  p.code.toLowerCase().includes(sc) || 
+                  sc.includes(p.code.toLowerCase())
               )
           );
 
