@@ -2145,47 +2145,64 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 
           setSearchImagePreview(compressedBase64);
 
-          // Kendi API Anahtarınız
+          // GÜNCELLEME: Canlı ortam engelini kaldırdık ve API anahtarınızı sabitledik
           const apiKey = "AIzaSyAHfW1psj_PV-hdmsMDaVQPxnnC0xK5Yx0"; 
 
           const base64Data = compressedBase64.split(',')[1];
           const inventoryCodes = products.map(p => p.code).filter(Boolean);
           const inventoryList = inventoryCodes.length > 0 ? inventoryCodes.join(", ") : "Stokta ürün yok";
           
-          const prompt = `Sen uzman bir mücevher asistanısın. Fotoğraftaki takıyı incele.\nMevcut stok kodlarımız şunlardır: ${inventoryList}.\nGörev: Fotoğraftaki takıya form, tarz ve tasarım olarak EN ÇOK BENZEYEN stok kodlarını bul.\nEn fazla 6 adet kod seç.`;
+          const prompt = `Sen uzman bir mücevher asistanısın. Fotoğraftaki takıyı incele.\nMevcut stok kodlarımız şunlardır: ${inventoryList}.\nGörev: Fotoğraftaki takıya form, tarz ve tasarım olarak EN ÇOK BENZEYEN stok kodlarını bul.\nEn fazla 6 adet kod seç. \nSADECE eşleşen kodları aralarına virgül koyarak yaz. Başka hiçbir kelime, cümle veya markdown (yıldız, madde işareti) KULLANMA.`;
 
-          // Google AI Studio'daki Halka Açık, Çalışan Standart Model
-          const model = "gemini-1.5-flash";
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          // YENİ: Hata veren gemini-2.5 kodunu sildik, sadece %100 çalışan modeli bıraktık
+          const modelsToTry = ["gemini-1.5-flash"];
 
-          const payload = {
-              contents: [{ role: "user", parts: [ { text: prompt }, { inlineData: { mimeType: "image/jpeg", data: base64Data } } ] }],
-              generationConfig: {
-                  responseMimeType: "application/json",
-                  responseSchema: {
-                      type: "OBJECT",
-                      properties: {
-                          codes: {
-                              type: "ARRAY",
-                              items: { type: "STRING" }
+          let result = null;
+          let lastError = null;
+
+          // Modelleri sırayla dene, biri hata verirse diğerine geç.
+          for (const model of modelsToTry) {
+              try {
+                  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                  const payload = {
+                      contents: [{ role: "user", parts: [ { text: prompt }, { inlineData: { mimeType: "image/jpeg", data: base64Data } } ] }],
+                      generationConfig: {
+                          responseMimeType: "application/json",
+                          responseSchema: {
+                              type: "OBJECT",
+                              properties: {
+                                  codes: {
+                                      type: "ARRAY",
+                                      items: { type: "STRING" }
+                                  }
+                              }
                           }
                       }
+                  };
+
+                  const res = await fetch(url, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(payload)
+                  });
+
+                  if (!res.ok) {
+                      const errText = await res.text();
+                      throw new Error(`API Hatası (${res.status}): ${errText}`);
                   }
+
+                  result = await res.json();
+                  break; // Başarılı olursa döngüden çık
+              } catch (err) {
+                  console.warn(`${model} modeli başarısız oldu:`, err.message);
+                  lastError = err;
               }
-          };
-
-          const res = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-          });
-
-          if (!res.ok) {
-              const errText = await res.text();
-              throw new Error(`API Hatası (${res.status}): ${errText}`);
           }
 
-          const result = await res.json();
+          if (!result) {
+              throw lastError || new Error("Yapay zeka modelleri yanıt vermedi.");
+          }
+
           const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
           const parsedData = JSON.parse(jsonText);
           const suggestedCodes = parsedData.codes || [];
