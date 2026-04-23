@@ -1,4 +1,4 @@
-/* global __firebase_config, __app_id, __initial_auth_token */
+/* global __firebase_config, __app_id, __initial_auth_token, __gemini_api_key */
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore';
 import { 
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, 
-  signInWithCustomToken, signOut, updateProfile
+  signInAnonymously, signInWithCustomToken, signOut, updateProfile
 } from 'firebase/auth';
 import {
   getStorage, ref, uploadBytesResumable, getDownloadURL
@@ -16,7 +16,7 @@ import {
   ShoppingBag, Search, Plus, Trash, LogOut,
   X, Star, RefreshCcw, Folder, ChevronDown, Printer, Download, Save, Check, CheckCheck,
   ArrowUp, Upload, User, Key, ChevronLeft, ChevronRight, AlertTriangle, Users, Send, Settings, Box, CheckCircle, Calendar, Minus, Pencil, Activity, TrendingUp, CheckSquare, FileText, Wand2,
-  Grid, AlignCenter, MousePointer2, Monitor, Paperclip, Menu, Loader2, FileUp, MonitorPlay, Image as ImageIcon
+  Grid, AlignCenter, MousePointer2, Monitor, Paperclip, Menu, Loader2, FileUp, MonitorPlay, Image as ImageIcon, Camera
 } from 'lucide-react';
 
 const FileIcon = FileText; 
@@ -98,7 +98,6 @@ const processFile = (file) => new Promise((resolve, reject) => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                // STORAGE HATASINI ÖNLEMEK İÇİN BOYUTLAR VE KALİTE OPTİMİZE EDİLDİ
                 const MAX_SIZE = 1600; 
                 
                 if (width > MAX_SIZE || height > MAX_SIZE) {
@@ -158,10 +157,10 @@ const PrintStyles = () => (
     .header-table th, .header-table td { border: 1px solid #000; padding: 4px; text-align: left; vertical-align: middle; line-height: 1.1; }
     .header-table th { background-color: #eee; font-weight: bold; }
     .erp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; align-content: start; }
-    .erp-card { border: 1px solid #000; display: flex; flex-direction: column; font-size: 9px; height: 220px; box-sizing: border-box; page-break-inside: avoid; overflow: hidden; }
-    .erp-image-area { height: 150px; border-bottom: 1px solid #000; display: flex; justify-content: center; align-items: center; background: #fff; overflow: hidden; padding: 2px; }
-    .erp-image-area img { width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; }
-    .erp-details-area { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+    .erp-card { border: 1px solid #000; display: flex; flex-direction: column; font-size: 9px; height: 225px; box-sizing: border-box; page-break-inside: avoid; overflow: hidden; background: #fff; }
+    .erp-image-area { flex: 1; border-bottom: 1px solid #000; display: flex; justify-content: center; align-items: center; background: #fff; overflow: hidden; padding: 0; }
+    .erp-image-area img { width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+    .erp-details-area { flex-shrink: 0; height: 80px; display: flex; flex-direction: column; justify-content: space-between; }
     .erp-header { font-weight: bold; background-color: #eee; text-align: center; font-size: 10px; border-bottom: 1px solid #ccc; padding: 1px 0; white-space: nowrap; overflow: hidden; }
     .erp-compact-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dotted #ccc; padding: 0 4px; font-size: 9px; line-height: 14px; background: #fff; height: 15px; }
     .erp-note { margin-top: auto; background-color: #ffffcc !important; padding: 2px; font-weight: bold; font-size: 8px; border-top: 1px solid #000; text-align: center; height: 35px; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1; }
@@ -1109,8 +1108,6 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
         if (!selectedFile) return;
         setUploading(true);
         try {
-            // Firebase Storage CORS/Bilinmeyen Hata sorununu çözmek için Base64'e geçildi.
-            // processFile, resmi yeniden boyutlandırıp kaliteyi düşürerek (optimizasyon) base64 üretir.
             const processedImage = await processFile(selectedFile);
 
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'catalogue_images'), {
@@ -1688,7 +1685,6 @@ const UserProfileModal = ({ user, isOpen, onClose }) => {
         setLoading(true); 
         try { 
             let finalPhotoUrl = photo;
-            // Profil fotoğrafları Firebase Storage hatası vermemesi için doğrudan Base64 ile güncellendi
             await updateProfile(user, { displayName: name, photoURL: finalPhotoUrl }); 
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid), { 
                 uid: user.uid, 
@@ -2066,6 +2062,10 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
   const [showEmptyCartModal, setShowEmptyCartModal] = useState(false);
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const [isImageSearchLoading, setIsImageSearchLoading] = useState(false);
+  const [imageSearchResults, setImageSearchResults] = useState(null);
+  const [searchImagePreview, setSearchImagePreview] = useState(null);
   
   const ITEMS_PER_PAGE = 24;
   const isAuthenticated = user && !user.isAnonymous;
@@ -2099,7 +2099,118 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 
   const paginatedProducts = useMemo(() => filteredProducts.slice((currentPage - 1) * ITEMS_PER_PAGE, (currentPage - 1) * ITEMS_PER_PAGE + ITEMS_PER_PAGE), [filteredProducts, currentPage]);
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
-  const handleCategoryClick = useCallback((category, subcategory = "Hepsi") => { setActiveCategory(category); setActiveSubCategory(subcategory); setSearchTerm(""); setIsMobileMenuOpen(false); }, []);
+  const handleCategoryClick = useCallback((category, subcategory = "Hepsi") => { setActiveCategory(category); setActiveSubCategory(subcategory); setSearchTerm(""); setIsMobileMenuOpen(false); clearImageSearch(); }, []);
+
+  const clearImageSearch = () => {
+      setImageSearchResults(null);
+      setSearchImagePreview(null);
+      if (document.getElementById('image-search-input')) {
+          document.getElementById('image-search-input').value = '';
+      }
+  };
+
+  const handleImageSearch = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+          setIsImageSearchLoading(true);
+          setImageSearchResults(null);
+          setSearchTerm("");
+
+          // 1. Resmi optimize et (Hız için)
+          const compressedBase64 = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                  const img = new Image();
+                  img.onload = () => {
+                      const canvas = document.createElement('canvas');
+                      let w = img.width; let h = img.height;
+                      if (w > 800 || h > 800) {
+                          const ratio = Math.min(800 / w, 800 / h);
+                          w *= ratio; h *= ratio;
+                      }
+                      canvas.width = w; canvas.height = h;
+                      const ctx = canvas.getContext('2d');
+                      ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0,0,w,h);
+                      ctx.drawImage(img, 0, 0, w, h);
+                      resolve(canvas.toDataURL('image/jpeg', 0.8));
+                  };
+                  img.onerror = () => reject(new Error("Görsel okunamadı"));
+                  img.src = event.target.result;
+              };
+              reader.onerror = () => reject(new Error("Dosya okunamadı"));
+              reader.readAsDataURL(file);
+          });
+
+          setSearchImagePreview(compressedBase64);
+
+          // KENDİ API ANAHTARINIZ (ESLint hatasını önlemek için doğrudan tanımladık)
+          const apiKey = "AIzaSyAHfW1psj_PV-hdmsMDaVQPxnnC0xK5Yx0"; 
+
+          const base64Data = compressedBase64.split(',')[1];
+          const inventoryCodes = products.map(p => p.code).filter(Boolean);
+          const inventoryList = inventoryCodes.length > 0 ? inventoryCodes.join(", ") : "Stokta ürün yok";
+          
+          const prompt = `Sen uzman bir mücevher asistanısın. Fotoğraftaki takıyı incele. Mevcut stok kodlarımız şunlardır: ${inventoryList}. Görev: Fotoğraftaki takıya form, tarz ve tasarım olarak EN ÇOK BENZEYEN stok kodlarını bul. En fazla 6 adet kod seç.`;
+
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+          // YENİLİK: Regex temizleme işkencesinden kurtulmak için JSON yanıtı istiyoruz
+          const payload = {
+              contents: [{ role: "user", parts: [ { text: prompt }, { inlineData: { mimeType: "image/jpeg", data: base64Data } } ] }],
+              generationConfig: {
+                  responseMimeType: "application/json",
+                  responseSchema: {
+                      type: "OBJECT",
+                      properties: {
+                          codes: {
+                              type: "ARRAY",
+                              items: { type: "STRING" }
+                          }
+                      }
+                  }
+              }
+          };
+
+          const res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) {
+              const errText = await res.text();
+              throw new Error(`HTTP ${res.status}: ${errText}`);
+          }
+
+          const result = await res.json();
+          const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+          const parsedData = JSON.parse(jsonText);
+          const suggestedCodes = parsedData.codes || [];
+
+          if (suggestedCodes.length === 0) {
+              setImageSearchResults([]);
+              return;
+          }
+
+          // Çıkan sonucu eşleştiriyoruz (Regex hatası tamamen kalktı)
+          const matchedProducts = products.filter(p => 
+              p.code && suggestedCodes.some(sc => 
+                  p.code.toLowerCase().trim() === sc.toLowerCase().trim()
+              )
+          );
+
+          setImageSearchResults(matchedProducts);
+
+      } catch (error) {
+          console.error("Görsel arama hatası:", error);
+          alert("Yapay zeka sunucusuna bağlanılamadı!\n\nDETAY: " + error.message + "\n\nNot: Eğer siteyi kendi sunucunuza yüklediyseniz, kodun içindeki apiKey değişkenine kendi API şifrenizi yazdığınızdan emin olun.");
+          setImageSearchResults([]);
+      } finally {
+          setIsImageSearchLoading(false);
+      }
+  };
 
   if (!isAuthenticated) return (
     <div className="fixed inset-0 z-[200] bg-slate-900 flex flex-col items-center justify-center overflow-hidden">
@@ -2236,7 +2347,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar flex flex-col">
-                {activeCategory === 'Anasayfa' && (
+                {activeCategory === 'Anasayfa' && !searchImagePreview && (
                     <div className={`flex flex-col items-center justify-center transition-all duration-500 ease-in-out px-4 ${searchTerm ? 'py-6 min-h-auto' : 'min-h-[300px] md:min-h-[400px] animate-in fade-in zoom-in'}`}>
                         <div className={`inline-block rounded-full bg-yellow-50 shadow-inner transition-all duration-500 ${searchTerm ? 'mb-2 p-3 scale-75' : 'mb-4 md:mb-6 p-6 md:p-8'}`}>
                             <Search size={searchTerm ? 32 : (window.innerWidth < 768 ? 48 : 64)} className="text-yellow-500 opacity-80"/>
@@ -2244,20 +2355,65 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                         <h2 className={`font-bold text-slate-800 font-serif tracking-wide transition-all duration-500 text-center ${searchTerm ? 'text-lg md:text-xl mb-1' : 'text-2xl md:text-3xl mb-2'}`}>
                             Model Arama
                         </h2>
-                        <div className={`relative w-full transition-all duration-500 ${searchTerm ? 'max-w-4xl' : 'max-w-lg'}`}>
-                            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24}/>
-                            <input 
-                                type="text" 
-                                value={searchTerm} 
-                                onChange={(e) => setSearchTerm(e.target.value)} 
-                                placeholder="Örn: SMG..." 
-                                className="w-full bg-white border-2 border-slate-100 rounded-full py-3 md:py-4 pl-12 md:pl-14 pr-6 text-base md:text-lg font-bold text-slate-800 outline-none focus:border-yellow-400 focus:ring-4 focus:ring-yellow-100 transition-all shadow-xl" 
-                                autoFocus
-                            />
+                        <div className={`relative w-full transition-all duration-500 ${searchTerm ? 'max-w-4xl' : 'max-w-lg'} flex items-center gap-2`}>
+                            <div className="relative w-full">
+                                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24}/>
+                                <input 
+                                    type="text" 
+                                    value={searchTerm} 
+                                    onChange={(e) => setSearchTerm(e.target.value)} 
+                                    placeholder="Örn: SMG..." 
+                                    className="w-full bg-white border-2 border-slate-100 rounded-full py-3 md:py-4 pl-12 md:pl-14 pr-6 text-base md:text-lg font-bold text-slate-800 outline-none focus:border-yellow-400 focus:ring-4 focus:ring-yellow-100 transition-all shadow-xl" 
+                                    autoFocus
+                                />
+                            </div>
+                            <button onClick={() => document.getElementById('image-search-input').click()} className={`shrink-0 p-3 md:p-4 bg-white border-2 rounded-full text-slate-600 hover:text-yellow-600 shadow-xl transition-all ${isImageSearchLoading ? 'border-yellow-400 animate-pulse' : 'border-slate-100 hover:border-yellow-400'}`} title="Kamera ile Fotoğraf Çek / Görsel Ara">
+                                <Camera size={24} />
+                            </button>
+                            <input type="file" id="image-search-input" accept="image/*" capture="environment" className="hidden" onChange={handleImageSearch} />
                         </div>
                     </div>
                 )}
-                {(activeCategory !== 'Anasayfa' || searchTerm) && (
+
+                {searchImagePreview && (
+                    <div className="w-full max-w-6xl mx-auto px-2 mt-4 animate-in fade-in zoom-in duration-300">
+                        <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                            <div className="flex items-center gap-4">
+                                 <div className="w-16 h-16 rounded-lg overflow-hidden shadow-inner border border-slate-200 shrink-0 relative">
+                                     <img src={searchImagePreview} className="w-full h-full object-cover"/>
+                                     {isImageSearchLoading && <div className="absolute inset-0 bg-black/30 flex items-center justify-center backdrop-blur-[1px]"><Loader2 size={24} className="text-white animate-spin"/></div>}
+                                 </div>
+                                 <div>
+                                    <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">Yapay Zeka Analizi {isImageSearchLoading && <Wand2 size={16} className="text-purple-500 animate-pulse"/>}</h3>
+                                    <p className="text-xs text-slate-500 font-medium">
+                                        {isImageSearchLoading ? "Fotoğraftaki takı inceleniyor..." : (imageSearchResults && imageSearchResults.length > 0 ? `Buna benzeyen ${imageSearchResults.length} model bulundu.` : "Eşleşen ürün bulunamadı.")}
+                                    </p>
+                                 </div>
+                            </div>
+                            <button onClick={clearImageSearch} disabled={isImageSearchLoading} className="text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50">
+                                <X size={16}/> İptal Et
+                            </button>
+                        </div>
+
+                        {imageSearchResults && !isImageSearchLoading && (
+                            <div className="flex flex-wrap -mx-2 animate-in slide-in-from-bottom-4 duration-500">
+                                {imageSearchResults.map(product => (
+                                    <div key={product.id} className="w-1/2 md:w-1/4 lg:w-1/5 p-2 box-border">
+                                        <ProductCard product={product} onAddToCart={setSelectedProduct} logoUrl={logoUrl} />
+                                    </div>
+                                ))}
+                                {imageSearchResults.length === 0 && (
+                                    <div className="w-full text-center py-16 text-slate-500 font-medium flex flex-col items-center gap-3">
+                                        <Search size={48} className="text-slate-300"/>
+                                        Maalesef kataloğumuzda bu fotoğrafa benzeyen bir model bulunamadı.
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {(activeCategory !== 'Anasayfa' || (searchTerm && !searchImagePreview)) && (
                     <div className={activeCategory === 'Anasayfa' ? 'animate-in fade-in slide-in-from-bottom-8 duration-500 mt-4' : ''}>
                         <div className="mb-4 flex items-center justify-end"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} /></div>
                         <div className="flex flex-wrap -mx-2">
