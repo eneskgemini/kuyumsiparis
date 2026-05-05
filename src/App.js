@@ -2138,6 +2138,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                       newUrl.searchParams.delete('alt');
                   }
               }
+              // tab parametresi varsa koru
               window.history.pushState({ category: activeCategory, subcategory: activeSubCategory }, '', newUrl);
           }
       } catch (e) {
@@ -2616,8 +2617,17 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 };
 
 const App = () => {
+    // 1. ADIM: Sayfa ilk açıldığında URL'de 'tab=' yazısı varsa paneli otomatik açık kabul et.
+    const [isAdminOpen, setIsAdminOpen] = useState(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.has('tab');
+        } catch (e) {
+            return false;
+        }
+    });
+
     const [user, setUser] = useState(null);
-    const [isAdminOpen, setIsAdminOpen] = useState(false);
     const [products, setProducts] = useState([]);
     const [orders, setOrders] = useState([]);
     const [cart, setCart] = useState([]);
