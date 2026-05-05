@@ -1,4 +1,4 @@
-/* global __firebase_config, __app_id, __initial_auth_token, __gemini_api_key */
+/* global __firebase_config, __app_id, __initial_auth_token */
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
@@ -16,7 +16,7 @@ import {
   ShoppingBag, Search, Plus, Trash, LogOut,
   X, Star, RefreshCcw, Folder, ChevronDown, Printer, Download, Save, Check, CheckCheck,
   ArrowUp, Upload, User, Key, ChevronLeft, ChevronRight, AlertTriangle, Users, Send, Settings, Box, CheckCircle, Calendar, Minus, Pencil, Activity, TrendingUp, CheckSquare, FileText, Wand2,
-  Grid, AlignCenter, MousePointer2, Monitor, Paperclip, Menu, Loader2, FileUp, MonitorPlay, Image as ImageIcon, Camera
+  Grid, AlignCenter, MousePointer2, Monitor, Paperclip, Menu, Loader2, FileUp, MonitorPlay, Image as ImageIcon, Camera, Sparkles
 } from 'lucide-react';
 
 const FileIcon = FileText; 
@@ -318,6 +318,7 @@ const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDel
         </div>
     );
 });
+
 // ==========================================
 // DASHBOARD COMPONENTS
 // ==========================================
@@ -2049,7 +2050,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   );
 };
 
-const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, setIsOrderPreviewOpen, handleCheckout, removeFromCart, orderKarat, user, setIsAdminOpen, setShowLogin, setSelectedProduct, onLogin, currentUserData, logoUrl, onOpenCatalogue }) => {
+const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, setIsOrderPreviewOpen, handleCheckout, removeFromCart, orderKarat, user, setIsAdminOpen, setShowLogin, setSelectedProduct, onLogin, currentUserData, logoUrl, onOpenCatalogue, setNotification }) => {
   const [activeCategory, setActiveCategory] = useState("Anasayfa");
   const [activeSubCategory, setActiveSubCategory] = useState("Hepsi"); 
   const [expandedCategory, setExpandedCategory] = useState(null); 
@@ -2066,6 +2067,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
   const [isImageSearchLoading, setIsImageSearchLoading] = useState(false);
   const [imageSearchResults, setImageSearchResults] = useState(null);
   const [searchImagePreview, setSearchImagePreview] = useState(null);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
   
   const ITEMS_PER_PAGE = 24;
   const isAuthenticated = user && !user.isAnonymous;
@@ -2104,6 +2106,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
   const clearImageSearch = () => {
       setImageSearchResults(null);
       setSearchImagePreview(null);
+      setAiAnalysis(null);
       if (document.getElementById('image-search-input')) {
           document.getElementById('image-search-input').value = '';
       }
@@ -2113,12 +2116,18 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
       const file = e.target.files[0];
       if (!file) return;
 
+      if (!products || products.length === 0) {
+          if(setNotification) setNotification({type:'error', message: "Sisteme henüz hiç ürün eklenmemiş."});
+          clearImageSearch();
+          return;
+      }
+
       try {
           setIsImageSearchLoading(true);
           setImageSearchResults(null);
+          setAiAnalysis(null);
           setSearchTerm("");
 
-          // 1. Resmi optimize et (Hız için)
           const compressedBase64 = await new Promise((resolve, reject) => {
               const reader = new FileReader();
               reader.onload = (event) => {
@@ -2145,57 +2154,65 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 
           setSearchImagePreview(compressedBase64);
 
-          // GÜNCELLEME: Canlı ortam engelini kaldırdık ve API anahtarınızı sabitledik
-          const apiKey = "AIzaSyAHfW1psj_PV-hdmsMDaVQPxnnC0xK5Yx0"; 
-
+          const apiKey = ""; 
           const base64Data = compressedBase64.split(',')[1];
-          const inventoryCodes = products.map(p => p.code).filter(Boolean);
-          const inventoryList = inventoryCodes.length > 0 ? inventoryCodes.join(", ") : "Stokta ürün yok";
           
-          const prompt = `Sen uzman bir mücevher asistanısın. Fotoğraftaki takıyı incele.\nMevcut stok kodlarımız şunlardır: ${inventoryList}.\nGörev: Fotoğraftaki takıya form, tarz ve tasarım olarak EN ÇOK BENZEYEN stok kodlarını bul.\nEn fazla 6 adet kod seç. \nSADECE eşleşen kodları aralarına virgül koyarak yaz. Başka hiçbir kelime, cümle veya markdown (yıldız, madde işareti) KULLANMA.`;
+          const catStr = CATEGORIES.filter(c => c !== "Anasayfa").join(', ');
+          const subStr = JSON.stringify(SUBCATEGORIES);
 
-          // YENİ: Hata veren gemini-2.5 kodunu sildik, sadece %100 çalışan modeli bıraktık
-          const modelsToTry = ["gemini-1.5-flash"];
+          const prompt = `Sen uzman bir mücevher eksperi ve stok yöneticisisin. Sana gönderdiğim takı fotoğrafını incele.
+          Sistemimizde şu ana kategoriler var: ${catStr}.
+          Alt kategorilerimiz (seri kodları): ${subStr}.
+          
+          Bu alt kategoriler genelde ürün özelliklerinin baş harflerinden veya kısaltmalarından oluşur (Örn: Sarı=S, Beyaz=B, Rose=R, Baget=B, Tektaş=T, Halka=H, Küpe=K, Kolye=K, Yüzük=Y, Göz=G, Kalp=K vb.).
+          Ancak tam anlamlarını bilmiyor olabilirsin, bu yüzden görsel olarak en çok benzeyenlere odaklan.
+          
+          GÖREVİN:
+          Aşağıdaki JSON formatında yanıt ver (sadece geçerli JSON dön, markdown kullanma):
+          {
+            "detectedText": "Eğer fotoğrafta barkod, etiket, yüzük içi veya kağıt üzerinde yazan bir stok kodu/yazı net okuyabiliyorsan buraya yaz. Yoksa boş bırak.",
+            "category": "Yüzük, Kolye, Küpe, Bileklik, Set, Haç vb. kategorilerden en uygun olan BİR TANESİNİ yaz.",
+            "characteristics": ["sarı altın", "beyaz altın", "rose altın", "taşlı", "taşsız", "baget", "tektaş", "tamtur", "su yolu", "halka", "zincir", "damla", "minimalist", "kalın", "ince", "mine", "kalp", "göz"],
+            "possibleSubcategoryAcronyms": ["Görseli inceleyip yukarıdaki alt kategori listemizden (Örn: SS-Y, SH-R vb.) bu tasarıma ve stile en çok uyan 5 tanesini tahmin et."]
+          }`;
 
           let result = null;
           let lastError = null;
-
-          // Modelleri sırayla dene, biri hata verirse diğerine geç.
-          for (const model of modelsToTry) {
+          
+          // Retry logic: Kurallara göre exponential backoff uyguluyoruz (1s, 2s, 4s, 8s, 16s gecikmelerle)
+          const delays = [1000, 2000, 4000, 8000, 16000];
+          
+          for (let i = 0; i <= delays.length; i++) {
               try {
-                  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
                   const payload = {
-                      contents: [{ role: "user", parts: [ { text: prompt }, { inlineData: { mimeType: "image/jpeg", data: base64Data } } ] }],
-                      generationConfig: {
-                          responseMimeType: "application/json",
-                          responseSchema: {
-                              type: "OBJECT",
-                              properties: {
-                                  codes: {
-                                      type: "ARRAY",
-                                      items: { type: "STRING" }
-                                  }
-                              }
-                          }
-                      }
+                      contents: [{ 
+                          role: "user", 
+                          parts: [ 
+                              { text: prompt }, 
+                              { inlineData: { mimeType: "image/jpeg", data: base64Data } } 
+                          ] 
+                      }]
                   };
-
-                  const res = await fetch(url, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
+                  
+                  const res = await fetch(url, { 
+                      method: 'POST', 
+                      headers: { 'Content-Type': 'application/json' }, 
                       body: JSON.stringify(payload)
                   });
-
+                  
                   if (!res.ok) {
-                      const errText = await res.text();
-                      throw new Error(`API Hatası (${res.status}): ${errText}`);
+                      const errorBody = await res.text();
+                      throw new Error(`HTTP ${res.status} - ${errorBody.substring(0, 50)}`);
                   }
-
+                  
                   result = await res.json();
-                  break; // Başarılı olursa döngüden çık
+                  break; // Başarılı, döngüden çık
               } catch (err) {
-                  console.warn(`${model} modeli başarısız oldu:`, err.message);
                   lastError = err;
+                  if (i < delays.length) {
+                      await new Promise(r => setTimeout(r, delays[i]));
+                  }
               }
           }
 
@@ -2204,27 +2221,79 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
           }
 
           const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-          const parsedData = JSON.parse(jsonText);
-          const suggestedCodes = parsedData.codes || [];
+          let parsedData = { detectedText: "", category: "", characteristics: [], possibleSubcategoryAcronyms: [] };
+          try { 
+              const cleanedText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+              parsedData = JSON.parse(cleanedText); 
+          } catch(e) { console.error("JSON okuma hatası", e); }
+          
+          setAiAnalysis(parsedData);
 
-          if (suggestedCodes.length === 0) {
-              setImageSearchResults([]);
-              return;
+          let scoredProducts = products.map(p => {
+              let score = 0;
+              const pCodeLower = p.code?.toLowerCase() || "";
+              const pCat = p.category;
+              const pSub = p.subcategory;
+
+              if (parsedData.detectedText) {
+                  const text = parsedData.detectedText.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  const pCodeClean = pCodeLower.replace(/[^a-z0-9]/g, '');
+                  if (text && text.length > 2 && (pCodeClean.includes(text) || text.includes(pCodeClean))) {
+                      score += 1000;
+                  }
+              }
+
+              if (parsedData.category && pCat) {
+                  if (pCat.toLowerCase() === parsedData.category.toLowerCase()) {
+                      score += 100;
+                  } else {
+                      score -= 50;
+                  }
+              }
+
+              if (parsedData.possibleSubcategoryAcronyms && Array.isArray(parsedData.possibleSubcategoryAcronyms)) {
+                  if (parsedData.possibleSubcategoryAcronyms.some(sub => sub.toLowerCase() === pSub?.toLowerCase())) {
+                      score += 30;
+                  }
+              }
+
+              if (parsedData.characteristics && Array.isArray(parsedData.characteristics)) {
+                  parsedData.characteristics.forEach(char => {
+                      const c = char.toLowerCase();
+                      if (pCodeLower.includes(c) || (pSub && pSub.toLowerCase().includes(c))) {
+                          score += 10;
+                      }
+                  });
+              }
+
+              // Sadece eşleşme yakalanan ürünlere rastgelelik ekle
+              if (score > 0) {
+                  score += Math.random();
+              }
+
+              return { product: p, score };
+          });
+
+          scoredProducts.sort((a, b) => b.score - a.score);
+
+          // Eksi veya sıfır puan alanları ele
+          let bestMatches = scoredProducts.filter(sp => sp.score > 0).map(sp => sp.product);
+
+          // Model hiçbir özellik bulamadıysa ama kategoriyi bildiyse:
+          if (bestMatches.length === 0 && parsedData.category) {
+              bestMatches = products.filter(p => p.category?.toLowerCase() === parsedData.category?.toLowerCase());
+          }
+          
+          // Hala boşsa rastgele ürün göster ki ekran boş kalmasın
+          if (bestMatches.length === 0) {
+              bestMatches = [...products].sort(() => 0.5 - Math.random());
           }
 
-          const matchedProducts = products.filter(p => 
-              p.code && suggestedCodes.some(sc => 
-                  p.code.toLowerCase() === sc || 
-                  p.code.toLowerCase().includes(sc) || 
-                  sc.includes(p.code.toLowerCase())
-              )
-          );
-
-          setImageSearchResults(matchedProducts);
+          setImageSearchResults(bestMatches.slice(0, 16));
 
       } catch (error) {
           console.error("Görsel arama hatası:", error);
-          alert("Yapay zeka sunucusuna bağlanılamadı!\n\nDETAY: " + error.message + "\n\nNot: Eğer siteyi kendi sunucunuza yüklediyseniz, kodun içindeki apiKey değişkenine kendi API şifrenizi yazdığınızdan emin olun.");
+          if (setNotification) setNotification({type: 'error', message: "Yapay Zeka Hatası: Lütfen tekrar deneyin."});
           setImageSearchResults([]);
       } finally {
           setIsImageSearchLoading(false);
@@ -2396,20 +2465,29 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 
                 {searchImagePreview && (
                     <div className="w-full max-w-6xl mx-auto px-2 mt-4 animate-in fade-in zoom-in duration-300">
-                        <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200 gap-4">
                             <div className="flex items-center gap-4">
                                  <div className="w-16 h-16 rounded-lg overflow-hidden shadow-inner border border-slate-200 shrink-0 relative">
                                      <img src={searchImagePreview} className="w-full h-full object-cover"/>
                                      {isImageSearchLoading && <div className="absolute inset-0 bg-black/30 flex items-center justify-center backdrop-blur-[1px]"><Loader2 size={24} className="text-white animate-spin"/></div>}
                                  </div>
                                  <div>
-                                    <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">Yapay Zeka Analizi {isImageSearchLoading && <Wand2 size={16} className="text-purple-500 animate-pulse"/>}</h3>
-                                    <p className="text-xs text-slate-500 font-medium">
-                                        {isImageSearchLoading ? "Fotoğraftaki takı inceleniyor..." : (imageSearchResults && imageSearchResults.length > 0 ? `Buna benzeyen ${imageSearchResults.length} model bulundu.` : "Eşleşen ürün bulunamadı.")}
+                                    <h3 className="font-bold text-slate-800 text-base md:text-lg flex items-center gap-2">Yapay Zeka Analizi {isImageSearchLoading ? <Wand2 size={16} className="text-purple-500 animate-pulse"/> : <Sparkles size={16} className="text-yellow-500"/>}</h3>
+                                    <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                                        {isImageSearchLoading ? "Fotoğraftaki takı inceleniyor, özellikler çıkartılıyor..." : (
+                                            aiAnalysis ? (
+                                                <span>
+                                                    <strong className="text-slate-700 bg-slate-100 px-1 py-0.5 rounded">{aiAnalysis.category || "Belirsiz Kategori"}</strong> tespit edildi. 
+                                                    {aiAnalysis.characteristics && aiAnalysis.characteristics.length > 0 && ` Görsel detaylar: ${aiAnalysis.characteristics.slice(0, 4).join(', ')}...`}
+                                                    <br/>
+                                                    Veritabanından en benzer {imageSearchResults?.length || 0} ürün eşleştirildi.
+                                                </span>
+                                            ) : "Alternatif ürünler listeleniyor."
+                                        )}
                                     </p>
                                  </div>
                             </div>
-                            <button onClick={clearImageSearch} disabled={isImageSearchLoading} className="text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50">
+                            <button onClick={clearImageSearch} disabled={isImageSearchLoading} className="w-full md:w-auto text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 px-4 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
                                 <X size={16}/> İptal Et
                             </button>
                         </div>
@@ -2424,7 +2502,7 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
                                 {imageSearchResults.length === 0 && (
                                     <div className="w-full text-center py-16 text-slate-500 font-medium flex flex-col items-center gap-3">
                                         <Search size={48} className="text-slate-300"/>
-                                        Maalesef kataloğumuzda bu fotoğrafa benzeyen bir model bulunamadı.
+                                        Maalesef kataloğumuzda bu fotoğrafa benzeyen veya serisi uyuşan bir model bulunamadı.
                                     </div>
                                 )}
                             </div>
