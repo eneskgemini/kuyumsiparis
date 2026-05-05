@@ -1527,7 +1527,37 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
 };
 
 const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, onClose, handleDeleteProduct, handleUpdateStatus, setNotification, onCreateNewOrder, onViewOrder, handleDeleteOrder, logoUrl, handleUpdateLogo }) => {
-    const [activeTab, setActiveTab] = useState('dashboard');
+    const getAdminParams = () => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return { tab: params.get('tab') || "dashboard" };
+        } catch (e) { return { tab: "dashboard" }; }
+    };
+    const [activeTab, setActiveTab] = useState(getAdminParams().tab);
+    
+    // Panel URL'sini de state ile eş zamanla
+    useEffect(() => {
+        try {
+            const currentParams = new URLSearchParams(window.location.search);
+            const currentTab = currentParams.get('tab') || "dashboard";
+            if (activeTab !== currentTab) {
+                const newUrl = new URL(window.location);
+                if (activeTab === "dashboard") {
+                    newUrl.searchParams.delete('tab');
+                } else {
+                    newUrl.searchParams.set('tab', activeTab);
+                }
+                window.history.pushState({ tab: activeTab }, '', newUrl);
+            }
+        } catch (e) {}
+    }, [activeTab]);
+
+    useEffect(() => {
+        const handlePopState = () => setActiveTab(getAdminParams().tab);
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
     const [dashboardDate, setDashboardDate] = useState(new Date());
     const [dragActive, setDragActive] = useState(false);
     const [newProduct, setNewProduct] = useState({ code: '', gram: '', category: 'Yüzük', subcategory: 'AS-B', imageUrl: '', imageFile: null });
@@ -2051,8 +2081,24 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
 };
 
 const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, setIsOrderPreviewOpen, handleCheckout, removeFromCart, orderKarat, user, setIsAdminOpen, setShowLogin, setSelectedProduct, onLogin, currentUserData, logoUrl, onOpenCatalogue, setNotification }) => {
-  const [activeCategory, setActiveCategory] = useState("Anasayfa");
-  const [activeSubCategory, setActiveSubCategory] = useState("Hepsi"); 
+  
+  // URL Parametrelerini okuma yardımcı fonksiyonu
+  const getUrlParams = () => {
+      try {
+          const params = new URLSearchParams(window.location.search);
+          return {
+              cat: params.get('kategori') || "Anasayfa",
+              sub: params.get('alt') || "Hepsi"
+          };
+      } catch (e) {
+          return { cat: "Anasayfa", sub: "Hepsi" };
+      }
+  };
+
+  const initialParams = getUrlParams();
+  const [activeCategory, setActiveCategory] = useState(initialParams.cat);
+  const [activeSubCategory, setActiveSubCategory] = useState(initialParams.sub); 
+  
   const [expandedCategory, setExpandedCategory] = useState(null); 
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -2071,6 +2117,45 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
   
   const ITEMS_PER_PAGE = 24;
   const isAuthenticated = user && !user.isAnonymous;
+
+  // State Değiştiğinde URL'yi Güncelleme İşlemi (History API Kullanımı)
+  useEffect(() => {
+      try {
+          const currentParams = new URLSearchParams(window.location.search);
+          const currentC = currentParams.get('kategori') || "Anasayfa";
+          const currentS = currentParams.get('alt') || "Hepsi";
+
+          if (activeCategory !== currentC || activeSubCategory !== currentS) {
+              const newUrl = new URL(window.location);
+              if (activeCategory === "Anasayfa") {
+                  newUrl.searchParams.delete('kategori');
+                  newUrl.searchParams.delete('alt');
+              } else {
+                  newUrl.searchParams.set('kategori', activeCategory);
+                  if (activeSubCategory !== "Hepsi") {
+                      newUrl.searchParams.set('alt', activeSubCategory);
+                  } else {
+                      newUrl.searchParams.delete('alt');
+                  }
+              }
+              window.history.pushState({ category: activeCategory, subcategory: activeSubCategory }, '', newUrl);
+          }
+      } catch (e) {
+          console.warn("URL update blocked", e);
+      }
+  }, [activeCategory, activeSubCategory]);
+
+  // Kullanıcı Tarayıcı Geri/İleri Tuşlarını Kullandığında State'i Güncelle
+  useEffect(() => {
+      const handlePopState = () => {
+          const params = getUrlParams();
+          setActiveCategory(params.cat);
+          setActiveSubCategory(params.sub);
+      };
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   useEffect(() => { setCurrentPage(1); }, [activeCategory, activeSubCategory, debouncedSearchTerm]);
   
   const handleLogout = async () => { 
