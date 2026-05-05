@@ -661,15 +661,23 @@ const AIStudio = () => {
     const [customFrameUrl, setCustomFrameUrl] = useState(() => { return localStorage.getItem('sahra_studio_frame') || DEFAULT_FRAME_URL; });
     const canvasRef = useRef(null); const containerRef = useRef(null); const frameInputRef = useRef(null); 
     const [userImage, setUserImage] = useState(null); const [frameImage, setFrameImage] = useState(null); const [imgState, setImgState] = useState({ x: 0, y: 0, w: 200, h: 200, aspect: 1 }); const [prodCode, setProdCode] = useState(""); const [prodGram, setProdGram] = useState(""); const [showGrid, setShowGrid] = useState(false); const [isDragging, setIsDragging] = useState(false); const [dragType, setDragType] = useState(null); const [activeHandle, setActiveHandle] = useState(null); const startPosRef = useRef({ x: 0, y: 0 }); const startImgStateRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
+    
     useEffect(() => { if(customFrameUrl) { const img = new Image(); img.crossOrigin = "anonymous"; img.src = customFrameUrl; img.onload = () => setFrameImage(img); } }, [customFrameUrl]);
+    
     const handleFrameSettingsClick = () => { if(frameInputRef.current) { frameInputRef.current.click(); } };
     const handleFrameSettingsUpload = (e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (evt) => { const res = evt.target.result; setCustomFrameUrl(res); localStorage.setItem('sahra_studio_frame', res); }; reader.readAsDataURL(file); } };
     const getMousePos = (e) => { const canvas = canvasRef.current; const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height; return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }; };
+    
     const draw = useCallback((isExport = false) => { const canvas = canvasRef.current; if (!canvas) return; const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); if (frameImage) ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height); if (userImage) { ctx.drawImage(userImage, imgState.x, imgState.y, imgState.w, imgState.h); if (!isExport) { const handleSize = 10; ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 2; ctx.strokeRect(imgState.x, imgState.y, imgState.w, imgState.h); ctx.fillStyle = "#ffffff"; ctx.fillRect(imgState.x - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize); ctx.strokeRect(imgState.x - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize); ctx.fillRect(imgState.x + imgState.w - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize); ctx.strokeRect(imgState.x + imgState.w - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize); ctx.fillRect(imgState.x - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize); ctx.strokeRect(imgState.x - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize); ctx.fillRect(imgState.x + imgState.w - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize); ctx.strokeRect(imgState.x + imgState.w - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize); } } if (showGrid && !isExport) { ctx.strokeStyle = "rgba(0, 0, 0, 0.2)"; ctx.lineWidth = 1; const gridSize = 50; for (let x = 0; x <= canvas.width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); } for (let y = 0; y <= canvas.height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); } ctx.strokeStyle = "rgba(255, 0, 0, 0.4)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, canvas.height); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, canvas.height/2); ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke(); } if (prodCode || prodGram) { ctx.textAlign = "right"; ctx.fillStyle = "#000000"; const alignRightX = canvas.width - 40; if(prodGram) { ctx.font = "normal 38pt 'Myriad Arabic', sans-serif"; ctx.fillText(prodGram.trim() + " gr", alignRightX, canvas.height - 40); } if(prodCode) { ctx.font = "bold 40pt 'Myriad Arabic', sans-serif"; ctx.fillText(prodCode.trim(), alignRightX, canvas.height - 100); } } }, [userImage, frameImage, imgState, prodCode, prodGram, showGrid]);
+    
     useEffect(() => { draw(); }, [draw]);
+    
     const handleImageUpload = (e) => { const file = e.target.files[0]; if (file) { const img = new Image(); img.onload = () => { setUserImage(img); const canvas = canvasRef.current; const aspect = img.width / img.height; const initialW = 300; const initialH = initialW / aspect; setImgState({ x: (canvas.width - initialW) / 2, y: (canvas.height - initialH) / 2, w: initialW, h: initialH, aspect: aspect }); }; img.src = URL.createObjectURL(file); } };
+    
     const handleMouseDown = (e) => { if (!userImage) return; const pos = getMousePos(e); const handleSize = 20; let currentType = null; let currentHandle = null; if (Math.abs(pos.x - imgState.x) < handleSize && Math.abs(pos.y - imgState.y) < handleSize) { currentType = 'resize'; currentHandle = 'tl'; } else if (Math.abs(pos.x - (imgState.x + imgState.w)) < handleSize && Math.abs(pos.y - imgState.y) < handleSize) { currentType = 'resize'; currentHandle = 'tr'; } else if (Math.abs(pos.x - imgState.x) < handleSize && Math.abs(pos.y - (imgState.y + imgState.h)) < handleSize) { currentType = 'resize'; currentHandle = 'bl'; } else if (Math.abs(pos.x - (imgState.x + imgState.w)) < handleSize && Math.abs(pos.y - (imgState.y + imgState.h)) < handleSize) { currentType = 'resize'; currentHandle = 'br'; } else if (pos.x > imgState.x && pos.x < imgState.x + imgState.w && pos.y > imgState.y && pos.y < imgState.y + imgState.h) { currentType = 'move'; currentHandle = null; } if (currentType) { setDragType(currentType); setActiveHandle(currentHandle); setIsDragging(true); startPosRef.current = pos; startImgStateRef.current = { ...imgState }; } };
+    
     const handleMouseMove = (e) => { if (!isDragging || !userImage) { return; } const pos = getMousePos(e); const dx = pos.x - startPosRef.current.x; const dy = pos.y - startPosRef.current.y; if (dragType === 'move') { setImgState(prev => (Object.assign({}, prev, { x: startImgStateRef.current.x + dx, y: startImgStateRef.current.y + dy }))); } else if (dragType === 'resize') { const startState = startImgStateRef.current; let newW = startState.w; let newH = startState.h; let newX = startState.x; let newY = startState.y; if (activeHandle === 'br') { newW = startState.w + dx; newH = newW / imgState.aspect; } else if (activeHandle === 'bl') { newW = startState.w - dx; newH = newW / imgState.aspect; newX = startState.x + dx; } else if (activeHandle === 'tr') { newW = startState.w + dx; newH = newW / imgState.aspect; newY = startState.y - (newH - startState.h); } else if (activeHandle === 'tl') { newW = startState.w - dx; newH = newW / imgState.aspect; newX = startState.x + dx; newY = startState.y - (newH - startState.h); } if (newW > 20 && newH > 20) { setImgState({ ...imgState, x: newX, y: newY, w: newW, h: newH }); } } };
+    
     const handleMouseUp = () => { setIsDragging(false); setDragType(null); setActiveHandle(null); };
     const centerImage = () => { if (!userImage) return; const canvas = canvasRef.current; setImgState(prev => (Object.assign({}, prev, { x: (canvas.width - prev.w) / 2, y: (canvas.height - prev.h) / 2 }))); };
     const handleDownloadImage = () => { draw(true); setTimeout(() => { try { const link = document.createElement('a'); link.download = 'sahra_studio.png'; link.href = canvasRef.current.toDataURL(); link.click(); } catch(e) { console.error("İndirme hatası", e); } finally { draw(false); } }, 50); };
@@ -1535,28 +1543,7 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
     };
     const [activeTab, setActiveTab] = useState(getAdminParams().tab);
     
-    // Panel URL'sini de state ile eş zamanla
-    useEffect(() => {
-        try {
-            const currentParams = new URLSearchParams(window.location.search);
-            const currentTab = currentParams.get('tab') || "dashboard";
-            if (activeTab !== currentTab) {
-                const newUrl = new URL(window.location);
-                if (activeTab === "dashboard") {
-                    newUrl.searchParams.delete('tab');
-                } else {
-                    newUrl.searchParams.set('tab', activeTab);
-                }
-                window.history.pushState({ tab: activeTab }, '', newUrl);
-            }
-        } catch (e) {}
-    }, [activeTab]);
-
-    useEffect(() => {
-        const handlePopState = () => setActiveTab(getAdminParams().tab);
-        window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
-    }, []);
+    // URL değiştiren kısım tamamen silindi. 
 
     const [dashboardDate, setDashboardDate] = useState(new Date());
     const [dragActive, setDragActive] = useState(false);
@@ -2082,22 +2069,8 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
 
 const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, setIsOrderPreviewOpen, handleCheckout, removeFromCart, orderKarat, user, setIsAdminOpen, setShowLogin, setSelectedProduct, onLogin, currentUserData, logoUrl, onOpenCatalogue, setNotification }) => {
   
-  // URL Parametrelerini okuma yardımcı fonksiyonu
-  const getUrlParams = () => {
-      try {
-          const params = new URLSearchParams(window.location.search);
-          return {
-              cat: params.get('kategori') || "Anasayfa",
-              sub: params.get('alt') || "Hepsi"
-          };
-      } catch (e) {
-          return { cat: "Anasayfa", sub: "Hepsi" };
-      }
-  };
-
-  const initialParams = getUrlParams();
-  const [activeCategory, setActiveCategory] = useState(initialParams.cat);
-  const [activeSubCategory, setActiveSubCategory] = useState(initialParams.sub); 
+  const [activeCategory, setActiveCategory] = useState("Anasayfa");
+  const [activeSubCategory, setActiveSubCategory] = useState("Hepsi"); 
   
   const [expandedCategory, setExpandedCategory] = useState(null); 
   const [searchTerm, setSearchTerm] = useState("");
@@ -2118,44 +2091,8 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
   const ITEMS_PER_PAGE = 24;
   const isAuthenticated = user && !user.isAnonymous;
 
-  // State Değiştiğinde URL'yi Güncelleme İşlemi (History API Kullanımı)
-  useEffect(() => {
-      try {
-          const currentParams = new URLSearchParams(window.location.search);
-          const currentC = currentParams.get('kategori') || "Anasayfa";
-          const currentS = currentParams.get('alt') || "Hepsi";
-
-          if (activeCategory !== currentC || activeSubCategory !== currentS) {
-              const newUrl = new URL(window.location);
-              if (activeCategory === "Anasayfa") {
-                  newUrl.searchParams.delete('kategori');
-                  newUrl.searchParams.delete('alt');
-              } else {
-                  newUrl.searchParams.set('kategori', activeCategory);
-                  if (activeSubCategory !== "Hepsi") {
-                      newUrl.searchParams.set('alt', activeSubCategory);
-                  } else {
-                      newUrl.searchParams.delete('alt');
-                  }
-              }
-              // tab parametresi varsa koru
-              window.history.pushState({ category: activeCategory, subcategory: activeSubCategory }, '', newUrl);
-          }
-      } catch (e) {
-          console.warn("URL update blocked", e);
-      }
-  }, [activeCategory, activeSubCategory]);
-
-  // Kullanıcı Tarayıcı Geri/İleri Tuşlarını Kullandığında State'i Güncelle
-  useEffect(() => {
-      const handlePopState = () => {
-          const params = getUrlParams();
-          setActiveCategory(params.cat);
-          setActiveSubCategory(params.sub);
-      };
-      window.addEventListener('popstate', handlePopState);
-      return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  // URL DEĞİŞTİREN KISIMLAR TAMAMEN SİLİNDİ
+  // ARTIK SİTE YÜKLENDİĞİNDE ADRES ÇUBUĞU SABİT KALACAKTIR
 
   useEffect(() => { setCurrentPage(1); }, [activeCategory, activeSubCategory, debouncedSearchTerm]);
   
@@ -2617,7 +2554,6 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
 };
 
 const App = () => {
-    // 1. ADIM: Sayfa ilk açıldığında URL'de 'tab=' yazısı varsa paneli otomatik açık kabul et.
     const [isAdminOpen, setIsAdminOpen] = useState(() => {
         try {
             const params = new URLSearchParams(window.location.search);
