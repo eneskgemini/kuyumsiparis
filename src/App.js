@@ -28,7 +28,7 @@ const DEFAULT_LOGO_URL = "https://i.hizliresim.com/6pdu20m.png";
 const DEFAULT_FRAME_URL = "https://i.hizliresim.com/pq4m3mg.png";
 const CATEGORIES = ["Anasayfa", "Yüzük", "Kolye", "Küpe", "Bileklik", "Set", "Haç"];
 const SUBCATEGORIES = {
-  "Yüzük": ["AS-B", "SMG", "SA-Y", "SB-M", "SB-Y", "SH-R", "SH-Y", "SK-Y", "SM-I", "SM-Y", "SR-G", "SS-H", "SS-Y", "ST-I", "ST-O"],
+  "Yüzük": ["AS-B", "SMG", "SA-Y", "SB-M", "SB-Y", "SH-R", "SH-Y", "SK-Y", "SM-I", "SM-T", "SM-Y", "SR-G", "SS-H", "SS-Y", "ST-I", "ST-O"],
   "Kolye": ["SA-K", "SH-H", "SK-A", "SK-B", "SK-E"],
   "Küpe": ["SH-K", "SK-M", "SM-K", "SR-E"],
   "Bileklik": ["AL-X", "SP-B", "SK-C"],
@@ -487,6 +487,26 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
     );
 };
 
+const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) => {
+    return (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 h-full">
+            <h2 className="text-2xl font-bold text-slate-800">Özet ve Performans</h2>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <SalesCalendar 
+                    orders={orders} 
+                    selectedDate={dashboardDate} 
+                    onDateChange={setDashboardDate} 
+                />
+                <MonthlyPerformanceView 
+                    orders={orders} 
+                    selectedDate={dashboardDate} 
+                />
+            </div>
+        </div>
+    );
+};
+
 const MessagingModule = ({ appId, currentUserProfile }) => {
     const [messages, setMessages] = useState([]);
     const [users, setUsers] = useState([]);
@@ -681,189 +701,487 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
     );
 };
 
+// Basit İkon Komponentleri (AIStudio İçin)
+const EraserIcon = ({ size }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+);
+const TextIcon = ({ size }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>
+);
+const Image = ({ size, className }) => (
+    <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+);
+
 const AIStudio = () => {
-    const [customFrameUrl, setCustomFrameUrl] = useState(() => { return localStorage.getItem('sahra_studio_frame') || DEFAULT_FRAME_URL; });
-    const canvasRef = useRef(null); const containerRef = useRef(null); const frameInputRef = useRef(null); 
-    const [userImage, setUserImage] = useState(null); const [frameImage, setFrameImage] = useState(null); const [imgState, setImgState] = useState({ x: 0, y: 0, w: 200, h: 200, aspect: 1 }); const [prodCode, setProdCode] = useState(""); const [prodGram, setProdGram] = useState(""); const [showGrid, setShowGrid] = useState(false); const [isDragging, setIsDragging] = useState(false); const [dragType, setDragType] = useState(null); const [activeHandle, setActiveHandle] = useState(null); const startPosRef = useRef({ x: 0, y: 0 }); const startImgStateRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
+    // Görsel Durumları
+    const [hasImage, setHasImage] = useState(false); 
+    const [imgState, setImgState] = useState({ x: 200, y: 150, w: 400, h: 400, aspect: 1 }); 
     
-    useEffect(() => { if(customFrameUrl) { const img = new Image(); img.crossOrigin = "anonymous"; img.src = customFrameUrl; img.onload = () => setFrameImage(img); } }, [customFrameUrl]);
+    // Araç ve Çizim Durumları
+    const [activeTool, setActiveTool] = useState('move'); // 'move', 'brush', 'eraser', 'text'
+    const [brushColor, setBrushColor] = useState('#eab308');
+    const [brushSize, setBrushSize] = useState(8);
+    const [paths, setPaths] = useState([]); 
+    const [currentPath, setCurrentPath] = useState(null);
     
-    const handleFrameSettingsClick = () => { if(frameInputRef.current) { frameInputRef.current.click(); } };
-    const handleFrameSettingsUpload = (e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (evt) => { const res = evt.target.result; setCustomFrameUrl(res); localStorage.setItem('sahra_studio_frame', res); }; reader.readAsDataURL(file); } };
-    const getMousePos = (e) => { const canvas = canvasRef.current; const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height; return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }; };
-    
-    const draw = useCallback((isExport = false) => { const canvas = canvasRef.current; if (!canvas) return; const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); if (frameImage) ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height); if (userImage) { ctx.drawImage(userImage, imgState.x, imgState.y, imgState.w, imgState.h); if (!isExport) { const handleSize = 10; ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 2; ctx.strokeRect(imgState.x, imgState.y, imgState.w, imgState.h); ctx.fillStyle = "#ffffff"; ctx.fillRect(imgState.x - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize); ctx.strokeRect(imgState.x - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize); ctx.fillRect(imgState.x + imgState.w - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize); ctx.strokeRect(imgState.x + imgState.w - handleSize/2, imgState.y - handleSize/2, handleSize, handleSize); ctx.fillRect(imgState.x - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize); ctx.strokeRect(imgState.x - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize); ctx.fillRect(imgState.x + imgState.w - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize); ctx.strokeRect(imgState.x + imgState.w - handleSize/2, imgState.y + imgState.h - handleSize/2, handleSize, handleSize); } } if (showGrid && !isExport) { ctx.strokeStyle = "rgba(0, 0, 0, 0.2)"; ctx.lineWidth = 1; const gridSize = 50; for (let x = 0; x <= canvas.width; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); } for (let y = 0; y <= canvas.height; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); } ctx.strokeStyle = "rgba(255, 0, 0, 0.4)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, canvas.height); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, canvas.height/2); ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke(); } if (prodCode || prodGram) { ctx.textAlign = "right"; ctx.fillStyle = "#000000"; const alignRightX = canvas.width - 40; if(prodGram) { ctx.font = "normal 38pt 'Myriad Arabic', sans-serif"; ctx.fillText(prodGram.trim() + " gr", alignRightX, canvas.height - 40); } if(prodCode) { ctx.font = "bold 40pt 'Myriad Arabic', sans-serif"; ctx.fillText(prodCode.trim(), alignRightX, canvas.height - 100); } } }, [userImage, frameImage, imgState, prodCode, prodGram, showGrid]);
+    // Metin (Text) Durumları
+    const [texts, setTexts] = useState([]);
+    const [textInput, setTextInput] = useState('');
+    const [activeTextId, setActiveTextId] = useState(null);
+
+    // Etkileşim Durumları
+    const [isDragging, setIsDragging] = useState(false); 
+    const [dragType, setDragType] = useState(null); // 'move-img', 'resize-img', 'move-text', 'draw'
+    const [activeHandle, setActiveHandle] = useState(null); 
+    const startPosRef = useRef({ x: 0, y: 0 }); 
+    const startImgStateRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
+    const textStartPosRef = useRef({ x: 0, y: 0 });
+
+    // Yapay Zeka Durumları
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [processStatus, setProcessStatus] = useState("");
+
+    // Referanslar
+    const canvasRef = useRef(null); 
+    const productCanvasRef = useRef(null); 
+    if (!productCanvasRef.current && typeof document !== 'undefined') {
+        productCanvasRef.current = document.createElement('canvas');
+    }
+
+    const getMousePos = (e) => { 
+        const canvas = canvasRef.current; 
+        const rect = canvas.getBoundingClientRect(); 
+        const scaleX = canvas.width / rect.width; 
+        const scaleY = canvas.height / rect.height; 
+        return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }; 
+    };
+
+    const draw = useCallback((isExport = false) => { 
+        const canvas = canvasRef.current; if (!canvas) return; 
+        const ctx = canvas.getContext('2d'); 
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height); 
+        
+        // 1. Ana Görseli Çiz
+        if (hasImage && productCanvasRef.current) { 
+            ctx.drawImage(productCanvasRef.current, imgState.x, imgState.y, imgState.w, imgState.h); 
+            
+            // Seçim/Boyutlandırma Kutucukları (Sadece Move modunda ve dışa aktarılmıyorken)
+            if (!isExport && activeTool === 'move') { 
+                const handleSize = 10; 
+                ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 2; 
+                ctx.strokeRect(imgState.x, imgState.y, imgState.w, imgState.h); 
+                ctx.fillStyle = "#ffffff"; 
+                
+                const drawHandle = (x, y) => {
+                    ctx.fillRect(x - handleSize/2, y - handleSize/2, handleSize, handleSize);
+                    ctx.strokeRect(x - handleSize/2, y - handleSize/2, handleSize, handleSize);
+                };
+                
+                drawHandle(imgState.x, imgState.y); // Sol Üst
+                drawHandle(imgState.x + imgState.w, imgState.y); // Sağ Üst
+                drawHandle(imgState.x, imgState.y + imgState.h); // Sol Alt
+                drawHandle(imgState.x + imgState.w, imgState.y + imgState.h); // Sağ Alt
+            } 
+        } 
+
+        // 2. Çizim Yollarını (Brush) Çiz
+        const drawPath = (p) => {
+            if(p.points.length === 0) return;
+            ctx.beginPath();
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = p.size;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            p.points.forEach((pt, i) => {
+                if (i === 0) ctx.moveTo(pt.x, pt.y);
+                else ctx.lineTo(pt.x, pt.y);
+            });
+            ctx.stroke();
+        };
+
+        paths.forEach(drawPath);
+        if (currentPath) drawPath(currentPath);
+
+        // 3. Metinleri (Text) Çiz
+        texts.forEach(t => {
+            ctx.font = `bold ${t.size}px sans-serif`;
+            ctx.fillStyle = t.color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(t.text, t.x, t.y);
+            
+            // Metin seçiliyse çerçeve çiz
+            if (!isExport && activeTool === 'move' && activeTextId === t.id) {
+                const metrics = ctx.measureText(t.text);
+                const w = metrics.width;
+                const h = t.size;
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.strokeRect(t.x - w/2 - 10, t.y - h/2 - 10, w + 20, h + 20);
+                ctx.setLineDash([]);
+            }
+        });
+
+    }, [hasImage, imgState, paths, currentPath, texts, activeTool, activeTextId]);
     
     useEffect(() => { draw(); }, [draw]);
-    
-    const handleImageUpload = (e) => { const file = e.target.files[0]; if (file) { const img = new Image(); img.onload = () => { setUserImage(img); const canvas = canvasRef.current; const aspect = img.width / img.height; const initialW = 300; const initialH = initialW / aspect; setImgState({ x: (canvas.width - initialW) / 2, y: (canvas.height - initialH) / 2, w: initialW, h: initialH, aspect: aspect }); }; img.src = URL.createObjectURL(file); } };
-    
-    const handleMouseDown = (e) => { if (!userImage) return; const pos = getMousePos(e); const handleSize = 20; let currentType = null; let currentHandle = null; if (Math.abs(pos.x - imgState.x) < handleSize && Math.abs(pos.y - imgState.y) < handleSize) { currentType = 'resize'; currentHandle = 'tl'; } else if (Math.abs(pos.x - (imgState.x + imgState.w)) < handleSize && Math.abs(pos.y - imgState.y) < handleSize) { currentType = 'resize'; currentHandle = 'tr'; } else if (Math.abs(pos.x - imgState.x) < handleSize && Math.abs(pos.y - (imgState.y + imgState.h)) < handleSize) { currentType = 'resize'; currentHandle = 'bl'; } else if (Math.abs(pos.x - (imgState.x + imgState.w)) < handleSize && Math.abs(pos.y - (imgState.y + imgState.h)) < handleSize) { currentType = 'resize'; currentHandle = 'br'; } else if (pos.x > imgState.x && pos.x < imgState.x + imgState.w && pos.y > imgState.y && pos.y < imgState.y + imgState.h) { currentType = 'move'; currentHandle = null; } if (currentType) { setDragType(currentType); setActiveHandle(currentHandle); setIsDragging(true); startPosRef.current = pos; startImgStateRef.current = { ...imgState }; } };
-    
-    const handleMouseMove = (e) => { if (!isDragging || !userImage) { return; } const pos = getMousePos(e); const dx = pos.x - startPosRef.current.x; const dy = pos.y - startPosRef.current.y; if (dragType === 'move') { setImgState(prev => (Object.assign({}, prev, { x: startImgStateRef.current.x + dx, y: startImgStateRef.current.y + dy }))); } else if (dragType === 'resize') { const startState = startImgStateRef.current; let newW = startState.w; let newH = startState.h; let newX = startState.x; let newY = startState.y; if (activeHandle === 'br') { newW = startState.w + dx; newH = newW / imgState.aspect; } else if (activeHandle === 'bl') { newW = startState.w - dx; newH = newW / imgState.aspect; newX = startState.x + dx; } else if (activeHandle === 'tr') { newW = startState.w + dx; newH = newW / imgState.aspect; newY = startState.y - (newH - startState.h); } else if (activeHandle === 'tl') { newW = startState.w - dx; newH = newW / imgState.aspect; newX = startState.x + dx; newY = startState.y - (newH - startState.h); } if (newW > 20 && newH > 20) { setImgState({ ...imgState, x: newX, y: newY, w: newW, h: newH }); } } };
-    
-    const handleMouseUp = () => { setIsDragging(false); setDragType(null); setActiveHandle(null); };
-    const centerImage = () => { if (!userImage) return; const canvas = canvasRef.current; setImgState(prev => (Object.assign({}, prev, { x: (canvas.width - prev.w) / 2, y: (canvas.height - prev.h) / 2 }))); };
-    const handleDownloadImage = () => { draw(true); setTimeout(() => { try { const link = document.createElement('a'); link.download = 'sahra_studio.png'; link.href = canvasRef.current.toDataURL(); link.click(); } catch(e) { console.error("İndirme hatası", e); } finally { draw(false); } }, 50); };
 
-    return (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-full flex flex-col md:flex-row gap-6 relative">
-            <input type="file" ref={frameInputRef} onChange={handleFrameSettingsUpload} className="hidden" accept="image/*" />
-            <button onClick={handleFrameSettingsClick} className="absolute top-4 right-4 z-20 p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors shadow-sm" title="Varsayılan Çerçeveyi Değiştir"><Settings size={20} /></button>
-            <div className="w-full md:w-1/3 flex flex-col gap-4">
-                 <div className="bg-slate-50 p-4 rounded-lg shadow-inner">
-                    <h3 className="font-bold mb-4 text-slate-800 flex items-center gap-2"><Wand2 size={18} className="text-purple-600"/> Stüdyo</h3>
-                    <div className="space-y-3">
-                        <div><label className="text-xs font-bold text-slate-500 mb-1 flex items-center gap-1"><Monitor size={12}/> Ürün Görseli</label><input type="file" onChange={handleImageUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/></div>
-                        <div className="border-t border-slate-200 my-2"></div>
-                        <div className="grid grid-cols-2 gap-2"><div><label className="text-xs font-bold text-slate-500 mb-1 block">Ürün Kodu</label><input type="text" placeholder="Kod" value={prodCode} onChange={e=>setProdCode(e.target.value)} className="w-full border p-2 rounded text-sm"/></div><div><label className="text-xs font-bold text-slate-500 mb-1 block">Gram</label><input type="text" placeholder="Gram" value={prodGram} onChange={e=>setProdGram(e.target.value)} className="w-full border p-2 rounded text-sm"/></div></div>
-                    </div>
-                 </div>
-                 <div className="grid grid-cols-2 gap-2"><button onClick={() => setShowGrid(!showGrid)} className={`py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 border transition-all ${showGrid ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}><Grid size={16}/> Izgara {showGrid ? 'Açık' : 'Kapalı'}</button><button onClick={centerImage} disabled={!userImage} className="py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2 border bg-white text-slate-600 border-slate-200 hover:bg-slate-50 disabled:opacity-50"><AlignCenter size={16}/> Ortala</button></div>
-                 <button onClick={handleDownloadImage} className="bg-slate-900 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-slate-800 flex items-center justify-center gap-2 mt-auto"><Download size={20}/> Tasarımı İndir</button>
-            </div>
-            <div className="flex-1 bg-slate-100 rounded-xl p-4 flex items-center justify-center border border-slate-200 relative overflow-hidden group"><div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px] opacity-50 pointer-events-none"></div><canvas ref={canvasRef} width={800} height={800} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} className={`w-auto h-full max-h-[600px] bg-white shadow-2xl rounded-lg relative z-10 ${userImage ? 'cursor-grab active:cursor-grabbing' : ''}`}/><div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-slate-500 shadow-sm border pointer-events-none flex items-center gap-2">{isDragging ? <MousePointer2 size={12} className="animate-pulse text-blue-500"/> : null} Canlı Önizleme</div></div>
-        </div>
-    );
-};
-
-const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate }) => {
-    const calculateOrderGram = (items) => {
-        if (!items) return 0;
-        return items.reduce((acc, item) => {
-            const g = parseFloat(item.gram.toString().replace(',', '.')) || 0;
-            const q = parseInt(item.quantity) || 1;
-            return acc + (g * q);
-        }, 0);
-    };
-
-    const workshopStats = useMemo(() => {
-        const preparing = orders.filter(o => o.status === 'preparing');
-        const count = preparing.length;
-        const totalGram = preparing.reduce((acc, order) => acc + calculateOrderGram(order.items), 0);
-        return { count, totalGram: totalGram.toFixed(2) };
-    }, [orders]);
-
-    const completedOrdersOfMonth = useMemo(() => {
-        return orders.filter(o => {
-            if (o.status !== 'delivered') return false;
-            if (!o.createdAt || !o.createdAt.seconds) return false;
-            const d = new Date(o.createdAt.seconds * 1000);
-            return d.getMonth() === dashboardDate.getMonth() && d.getFullYear() === dashboardDate.getFullYear();
-        }).sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
-    }, [orders, dashboardDate]);
-
-    const monthlyTotalGram = useMemo(() => {
-        return completedOrdersOfMonth.reduce((acc, o) => acc + calculateOrderGram(o.items), 0);
-    }, [completedOrdersOfMonth]);
-
-    const changeMonth = (dir) => {
-        const newDate = new Date(dashboardDate.getFullYear(), dashboardDate.getMonth() + dir, 1);
-        setDashboardDate(newDate);
-    };
-
-    const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-
-    return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <h2 className="text-2xl font-bold text-slate-800">Panel Özeti</h2>
+    // ---- GÖRSEL YÜKLEME VE SÜRÜKLE-BIRAK ----
+    const processUploadedImage = (file) => {
+    if (!file || !file.type.match('image.*')) return;
+    const img = new window.Image(); 
+        img.onload = () => { 
+            const pCanvas = productCanvasRef.current;
+            pCanvas.width = img.width;
+            pCanvas.height = img.height;
+            const ctx = pCanvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    <div className="text-slate-500 text-sm font-bold mb-1">Toplam Ürün</div>
-                    <div className="text-3xl font-bold text-slate-800">{products.length}</div>
-                </div>
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    <div className="text-slate-500 text-sm font-bold mb-1">Atölyede Olan Sipariş</div>
-                    <div className="text-3xl font-bold text-slate-800">
-                        {workshopStats.count} <span className="text-lg font-medium text-slate-500">({workshopStats.totalGram} gr)</span>
-                    </div>
-                </div>
-            </div>
+            setHasImage(true);
+            const canvas = canvasRef.current; 
+            const aspect = img.width / img.height; 
+            const initialW = 400; 
+            const initialH = initialW / aspect; 
+            setImgState({ x: (canvas.width - initialW) / 2, y: (canvas.height - initialH) / 2, w: initialW, h: initialH, aspect: aspect }); 
+            setActiveTool('move');
+        }; 
+        img.src = URL.createObjectURL(file); 
+    };
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SalesCalendar orders={orders} selectedDate={dashboardDate} onDateChange={setDashboardDate} />
-                <MonthlyPerformanceView orders={orders} selectedDate={dashboardDate} />
-            </div>
+    const handleCanvasDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        processUploadedImage(e.dataTransfer.files[0]);
+    };
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6">
-                <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                        <CheckCircle size={18} className="text-green-600"/> 
-                        Tamamlanan Siparişler ({monthNames[dashboardDate.getMonth()]} {dashboardDate.getFullYear()})
-                    </h3>
+    const handleCanvasDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    // ---- ARAÇ İŞLEMLERİ (MOUSE EVENTLERİ) ----
+    const eraseAtMouse = (pos) => {
+        if (!hasImage || !productCanvasRef.current) return;
+        const scaleX = productCanvasRef.current.width / imgState.w;
+        const scaleY = productCanvasRef.current.height / imgState.h;
+        const x = (pos.x - imgState.x) * scaleX;
+        const y = (pos.y - imgState.y) * scaleY;
+        
+        const ctx = productCanvasRef.current.getContext('2d');
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(x, y, brushSize * scaleX, 0, Math.PI * 2); 
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+        draw();
+    };
+
+    const handleMouseDown = (e) => { 
+        const pos = getMousePos(e); 
+        
+        if (activeTool === 'brush') {
+            setIsDragging(true);
+            setDragType('draw');
+            setCurrentPath({ color: brushColor, size: brushSize, points: [pos] });
+            return;
+        }
+
+        if (activeTool === 'eraser' && hasImage) {
+            setIsDragging(true);
+            setDragType('erase');
+            eraseAtMouse(pos);
+            return;
+        }
+
+        if (activeTool === 'move') {
+            // Önce Metinleri Kontrol Et (En üst katman)
+            const canvasCtx = canvasRef.current.getContext('2d');
+            for(let i = texts.length - 1; i >= 0; i--) {
+                const t = texts[i];
+                canvasCtx.font = `bold ${t.size}px sans-serif`;
+                const metrics = canvasCtx.measureText(t.text);
+                const w = metrics.width;
+                const h = t.size;
+                if (pos.x > t.x - w/2 - 10 && pos.x < t.x + w/2 + 10 && pos.y > t.y - h/2 - 10 && pos.y < t.y + h/2 + 10) {
+                    setDragType('move-text');
+                    setActiveTextId(t.id);
+                    setIsDragging(true);
+                    startPosRef.current = pos;
+                    textStartPosRef.current = { x: t.x, y: t.y };
+                    return;
+                }
+            }
+
+            // Metin seçilmediyse resmi kontrol et
+            setActiveTextId(null);
+            if (!hasImage) return;
+
+            const handleSize = 20; 
+            let currentType = null; 
+            let currentHandle = null; 
+            
+            if (Math.abs(pos.x - imgState.x) < handleSize && Math.abs(pos.y - imgState.y) < handleSize) { currentType = 'resize-img'; currentHandle = 'tl'; } 
+            else if (Math.abs(pos.x - (imgState.x + imgState.w)) < handleSize && Math.abs(pos.y - imgState.y) < handleSize) { currentType = 'resize-img'; currentHandle = 'tr'; } 
+            else if (Math.abs(pos.x - imgState.x) < handleSize && Math.abs(pos.y - (imgState.y + imgState.h)) < handleSize) { currentType = 'resize-img'; currentHandle = 'bl'; } 
+            else if (Math.abs(pos.x - (imgState.x + imgState.w)) < handleSize && Math.abs(pos.y - (imgState.y + imgState.h)) < handleSize) { currentType = 'resize-img'; currentHandle = 'br'; } 
+            else if (pos.x > imgState.x && pos.x < imgState.x + imgState.w && pos.y > imgState.y && pos.y < imgState.y + imgState.h) { currentType = 'move-img'; currentHandle = null; } 
+            
+            if (currentType) { 
+                setDragType(currentType); 
+                setActiveHandle(currentHandle); 
+                setIsDragging(true); 
+                startPosRef.current = pos; 
+                startImgStateRef.current = { ...imgState }; 
+            } 
+        }
+    };
+    
+    const handleMouseMove = (e) => { 
+        if (!isDragging) return;
+        const pos = getMousePos(e); 
+        
+        if (dragType === 'draw' && currentPath) {
+            setCurrentPath(prev => ({ ...prev, points: [...prev.points, pos] }));
+            return;
+        }
+
+        if (dragType === 'erase') {
+            eraseAtMouse(pos);
+            return;
+        }
+
+        const dx = pos.x - startPosRef.current.x; 
+        const dy = pos.y - startPosRef.current.y; 
+        
+        if (dragType === 'move-text' && activeTextId) {
+            setTexts(prev => prev.map(t => t.id === activeTextId ? { ...t, x: textStartPosRef.current.x + dx, y: textStartPosRef.current.y + dy } : t));
+        }
+        else if (dragType === 'move-img' && hasImage) { 
+            setImgState(prev => ({ ...prev, x: startImgStateRef.current.x + dx, y: startImgStateRef.current.y + dy })); 
+        } 
+        else if (dragType === 'resize-img' && hasImage) { 
+            const startState = startImgStateRef.current; let newW = startState.w; let newH = startState.h; let newX = startState.x; let newY = startState.y; 
+            if (activeHandle === 'br') { newW = startState.w + dx; newH = newW / imgState.aspect; } 
+            else if (activeHandle === 'bl') { newW = startState.w - dx; newH = newW / imgState.aspect; newX = startState.x + dx; } 
+            else if (activeHandle === 'tr') { newW = startState.w + dx; newH = newW / imgState.aspect; newY = startState.y - (newH - startState.h); } 
+            else if (activeHandle === 'tl') { newW = startState.w - dx; newH = newW / imgState.aspect; newX = startState.x + dx; newY = startState.y - (newH - startState.h); } 
+            if (newW > 20 && newH > 20) { setImgState({ ...imgState, x: newX, y: newY, w: newW, h: newH }); } 
+        } 
+    };
+    
+    const handleMouseUp = () => { 
+        if (dragType === 'draw' && currentPath) {
+            setPaths(prev => [...prev, currentPath]);
+            setCurrentPath(null);
+        }
+        setIsDragging(false); 
+        setDragType(null); 
+        setActiveHandle(null); 
+    };
+
+    // ---- FONKSİYONLAR ----
+    const handleRemoveBackground = async () => {
+        if (!hasImage || !productCanvasRef.current) return;
+        setIsProcessing(true);
+        setProcessStatus("Yapay zeka hazırlanıyor...");
+        
+        try {
+            // Kütüphaneyi güvenli bir şekilde import et
+            const imgly = await import('@imgly/background-removal');
+            const removeBackground = imgly.removeBackground || imgly.default;
+            
+            // Arka planı sil (Resmi doğrudan canvas olarak gönderiyoruz)
+            const imageBuffer = await removeBackground(productCanvasRef.current, {
+                // Hayati Ayar: Localhost'ta model dosyalarının bulunamama hatasını çözer
+                publicPath: "https://unpkg.com/@imgly/background-removal/dist/",
+                progress: (key, current, total) => {
+                    setProcessStatus(`İşleniyor: %${Math.round((current/total)*100)}`);
+                }
+            });
+            
+            const url = URL.createObjectURL(imageBuffer);
+            const newImg = new window.Image();
+            newImg.onload = () => {
+                const pCanvas = productCanvasRef.current;
+                pCanvas.width = newImg.width;
+                pCanvas.height = newImg.height;
+                const ctx = pCanvas.getContext('2d');
+                ctx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+                ctx.drawImage(newImg, 0, 0);
+                draw(); // Değişikliği ana ekrana yansıt
+                setIsProcessing(false);
+            };
+            newImg.src = url;
+            
+        } catch (error) {
+            console.error("AI Silme Hatası:", error);
+            alert("Arka plan silinemedi. İnternet bağlantınızı kontrol edin.");
+            setIsProcessing(false);
+        }
+    };
+
+    const handleAddText = () => {
+        if (!textInput.trim()) return;
+        setTexts([...texts, {
+            id: Date.now(),
+            text: textInput,
+            x: canvasRef.current.width / 2,
+            y: canvasRef.current.height / 2,
+            color: brushColor,
+            size: 60
+        }]);
+        setTextInput('');
+        setActiveTool('move');
+    };
+
+    const handleDeleteActiveText = () => {
+        if(activeTextId) {
+            setTexts(prev => prev.filter(t => t.id !== activeTextId));
+            setActiveTextId(null);
+        }
+    };
+
+    const handleDownloadImage = () => { 
+        setActiveTool('move');
+        setActiveTextId(null);
+        draw(true); // Export modunda çiz (seçim kutuları gizlenir)
+        setTimeout(() => { 
+            try { 
+                const link = document.createElement('a'); 
+                link.download = 'sahra_photoshop_studio.png'; 
+                link.href = canvasRef.current.toDataURL('image/png'); 
+                link.click(); 
+            } catch(e) { console.error("İndirme hatası", e); } 
+            finally { draw(false); } 
+        }, 100); 
+    };
+
+    const clearCanvas = () => {
+        setHasImage(false);
+        setPaths([]);
+        setTexts([]);
+        setActiveTextId(null);
+    };
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 h-[700px] flex flex-col md:flex-row overflow-hidden relative">
+            
+            {/* SOL ARAÇ ÇUBUĞU (TOOLBAR) */}
+            <div className="w-full md:w-72 bg-slate-900 text-white flex flex-col border-r border-slate-800 shadow-xl z-20 shrink-0">
+                 <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+                    <h3 className="font-bold tracking-wide flex items-center gap-2"><Wand2 size={18} className="text-yellow-500"/> Stüdyo & Editör</h3>
+                    <button onClick={clearCanvas} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1"><Trash size={12}/> Temizle</button>
+                 </div>
+                 
+                 <div className="p-4 flex-1 overflow-y-auto space-y-6 custom-scrollbar">
                     
-                    <div className="flex items-center gap-2 bg-white border rounded-lg p-1 shadow-sm">
-                        <button onClick={() => changeMonth(-1)} className="p-1.5 hover:bg-slate-100 rounded-md text-slate-600 transition-colors" title="Önceki Ay">
-                            <ChevronLeft size={20}/>
-                        </button>
-                        <span className="text-sm font-bold w-24 text-center select-none text-slate-700">
-                            {monthNames[dashboardDate.getMonth()]}
-                        </span>
-                        <button onClick={() => changeMonth(1)} className="p-1.5 hover:bg-slate-100 rounded-md text-slate-600 transition-colors" title="Sonraki Ay">
-                            <ChevronRight size={20}/>
-                        </button>
-                    </div>
-                </div>
+                    {/* Görsel Yükleme */}
+                    {!hasImage && (
+                        <div className="bg-slate-800/50 p-4 rounded-xl border border-dashed border-slate-600 text-center">
+                            <Upload className="mx-auto mb-2 text-slate-400" size={24}/>
+                            <label className="cursor-pointer text-sm font-bold text-yellow-500 hover:text-yellow-400 block mb-1">
+                                Görsel Seç 
+                                <input type="file" onChange={(e) => processUploadedImage(e.target.files[0])} className="hidden" accept="image/*"/>
+                            </label>
+                            <p className="text-[10px] text-slate-500">veya sağ alana sürükleyip bırakın</p>
+                        </div>
+                    )}
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-100 text-slate-600 font-bold border-b text-xs uppercase tracking-wider">
-                            <tr>
-                                <th className="p-4">Tarih</th>
-                                <th className="p-4">Müşteri / Firma</th>
-                                <th className="p-4">Sipariş İçeriği</th>
-                                <th className="p-4 text-right">Toplam Gram</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {completedOrdersOfMonth.length === 0 ? (
-                                <tr>
-                                    <td colSpan="4" className="p-8 text-center text-slate-400 font-medium">
-                                        Bu ay tamamlanan sipariş bulunmuyor.
-                                    </td>
-                                </tr>
-                            ) : (
-                                completedOrdersOfMonth.map(order => {
-                                    const gram = calculateOrderGram(order.items);
-                                    return (
-                                        <tr key={order.id} className="hover:bg-slate-50 transition-colors group">
-                                            <td className="p-4 text-slate-500 font-mono text-xs whitespace-nowrap">
-                                                {new Date(order.createdAt.seconds * 1000).toLocaleString('tr-TR')}
-                                            </td>
-                                            <td className="p-4 font-bold text-slate-700">
-                                                {order.customerName}
-                                                <div className="text-[10px] text-slate-400 font-normal">{order.customOrderNo}</div>
-                                            </td>
-                                            <td className="p-4 text-slate-600 text-xs">
-                                                <div className="max-w-md truncate">
-                                                    {order.items?.map(i => `${i.quantity}x ${i.code}`).join(', ')}
-                                                </div>
-                                                <div className="text-[10px] text-slate-400 mt-0.5">
-                                                    {order.items?.length} farklı model
-                                                </div>
-                                            </td>
-                                            <td className="p-4 text-right font-bold text-green-700 font-mono text-sm">
-                                                {gram.toFixed(2)} gr
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                        {completedOrdersOfMonth.length > 0 && (
-                            <tfoot className="bg-slate-50 border-t border-slate-200">
-                                <tr>
-                                    <td colSpan="3" className="p-4 text-right font-bold text-slate-600 text-xs uppercase">
-                                        {monthNames[dashboardDate.getMonth()]} Ayı Toplamı:
-                                    </td>
-                                    <td className="p-4 text-right font-bold text-green-800 text-base">
-                                        {monthlyTotalGram.toFixed(2)} gr
-                                    </td>
-                                </tr>
-                            </tfoot>
+                    {/* Araç Seçimi */}
+                    <div className="space-y-3">
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Araçlar</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button onClick={() => setActiveTool('move')} className={`p-3 rounded-lg flex flex-col items-center gap-2 text-xs font-bold transition-all ${activeTool === 'move' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><MousePointer2 size={18}/> Taşı / Seç</button>
+                            <button onClick={() => setActiveTool('brush')} className={`p-3 rounded-lg flex flex-col items-center gap-2 text-xs font-bold transition-all ${activeTool === 'brush' ? 'bg-yellow-500 text-slate-900 shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><Pencil size={18}/> Fırça</button>
+                            <button onClick={() => setActiveTool('eraser')} className={`p-3 rounded-lg flex flex-col items-center gap-2 text-xs font-bold transition-all ${activeTool === 'eraser' ? 'bg-red-500 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><EraserIcon size={18}/> Akıllı Silgi</button>
+                            <button onClick={() => setActiveTool('text')} className={`p-3 rounded-lg flex flex-col items-center gap-2 text-xs font-bold transition-all ${activeTool === 'text' ? 'bg-purple-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}><TextIcon size={18}/> Metin Ekle</button>
+                        </div>
+                    </div>
+
+                    {/* Araç Ayarları */}
+                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-400">Renk:</label>
+                            <input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0" />
+                        </div>
+                        
+                        {(activeTool === 'brush' || activeTool === 'eraser') && (
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 flex justify-between mb-2"><span>Kalınlık:</span> <span>{brushSize}px</span></label>
+                                <input type="range" min="1" max="50" value={brushSize} onChange={(e) => setBrushSize(e.target.value)} className="w-full accent-yellow-500" />
+                            </div>
                         )}
-                    </table>
+                        
+                        {activeTool === 'text' && (
+                            <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                                <input type="text" value={textInput} onChange={e => setTextInput(e.target.value)} placeholder="Yazı girin..." className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-sm text-white focus:border-purple-500 outline-none" />
+                                <button onClick={handleAddText} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg text-xs font-bold transition-colors">Tuvale Ekle</button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Metin Seçiliyse Silme Butonu */}
+                    {activeTool === 'move' && activeTextId && (
+                        <button onClick={handleDeleteActiveText} className="w-full bg-red-900/50 hover:bg-red-900 text-red-200 py-2.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2 animate-in zoom-in duration-200">
+                            <Trash size={14}/> Seçili Metni Sil
+                        </button>
+                    )}
+
+                    {/* AI Arkaplan Silme */}
+                    {hasImage && (
+                        <div className="pt-2 border-t border-slate-800">
+                            <button 
+                                onClick={handleRemoveBackground} 
+                                disabled={isProcessing}
+                                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {isProcessing ? <Loader2 size={16} className="animate-spin"/> : <Wand2 size={16} />}
+                                AI Arka Planı Temizle
+                            </button>
+                        </div>
+                    )}
+                 </div>
+
+                 <div className="p-4 border-t border-slate-800 bg-slate-950">
+                    <button onClick={handleDownloadImage} className="w-full bg-yellow-500 text-slate-900 py-3 rounded-xl font-bold shadow-lg hover:bg-yellow-400 flex items-center justify-center gap-2 transition-transform active:scale-95">
+                        <Download size={18}/> Çalışmayı İndir
+                    </button>
+                 </div>
+            </div>
+            
+            {/* SAĞ ÇALIŞMA ALANI (CANVAS) */}
+            <div 
+                className={`flex-1 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px] bg-slate-100 flex items-center justify-center relative overflow-hidden group 
+                ${activeTool === 'brush' ? 'cursor-crosshair' : activeTool === 'eraser' ? 'cursor-cell' : 'cursor-default'}`}
+                onDragOver={handleCanvasDragOver}
+                onDrop={handleCanvasDrop}
+            >
+                {/* Boş Durum Sürükle Bırak Alanı */}
+                {!hasImage && paths.length === 0 && texts.length === 0 && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-50 text-slate-400">
+                        <Image size={64} className="mb-4 text-slate-300"/>
+                        <p className="font-bold text-lg">Fotoğraf Sürükle & Bırak</p>
+                    </div>
+                )}
+
+                {/* Yükleme Ekranı */}
+                {isProcessing && (
+                    <div className="absolute inset-0 z-30 bg-white/80 backdrop-blur-md flex flex-col items-center justify-center">
+                        <Loader2 size={48} className="animate-spin text-blue-600 mb-4" />
+                        <div className="text-lg font-bold text-slate-800">{processStatus}</div>
+                        <div className="text-xs text-slate-500 mt-2 max-w-xs text-center">Yapay zeka modeli tarayıcınıza indiriliyor. İnternet hızınıza göre birkaç saniye sürebilir...</div>
+                    </div>
+                )}
+
+                <div className="shadow-2xl bg-white relative">
+                    <canvas 
+                        ref={canvasRef} 
+                        width={1080} height={1080} 
+                        onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} 
+                        className={`w-auto h-full max-h-[650px] aspect-square block ${activeTool === 'move' && hasImage ? 'active:cursor-grabbing' : ''}`}
+                    />
                 </div>
             </div>
         </div>
