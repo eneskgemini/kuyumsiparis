@@ -89,11 +89,12 @@ const naturalSort = (a, b) => {
 const parseGram = (val) => { if (!val) return 0; const f = parseFloat(val.toString().replace(',', '.')); return isNaN(f) ? 0 : f; };
 
 const processFile = (file) => new Promise((resolve, reject) => {
+    if (!file) return reject(new Error("Dosya bulunamadı."));
     const reader = new FileReader();
     reader.onload = (e) => {
         const result = e.target.result;
-        if (file.type.match('image.*')) {
-            const img = new Image();
+        if (file.type && file.type.match('image.*')) {
+            const img = new window.Image(); // FIX: Explicitly use window.Image to avoid collision
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
