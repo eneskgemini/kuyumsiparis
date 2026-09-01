@@ -1207,10 +1207,18 @@ const AdminProductManager = ({ products, editingId, startEditing, cancelEditing,
         const sortedProducts = [...products].sort(naturalSort);
         
         sortedProducts.forEach(p => {
-            if (!grouped[p.category]) grouped[p.category] = {};
-            const sub = p.subcategory || 'Diğer';
-            if (!grouped[p.category][sub]) grouped[p.category][sub] = [];
-            grouped[p.category][sub].push(p);
+            let cat = p.category;
+            if (!CATEGORIES.includes(cat)) cat = 'Diğer'; // Fallback for invalid categories
+            if (!grouped[cat]) grouped[cat] = {};
+            
+            // Normalize subcategory matching to prevent duplication
+            let sub = p.subcategory || 'Genel';
+            const validSubs = SUBCATEGORIES[cat] || [];
+            const matchedSub = validSubs.find(s => s.toUpperCase() === sub.toUpperCase());
+            sub = matchedSub || sub.toUpperCase(); 
+
+            if (!grouped[cat][sub]) grouped[cat][sub] = [];
+            grouped[cat][sub].push(p);
         });
         return grouped;
     }, [products]);
@@ -1417,9 +1425,16 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
     const groupedImages = useMemo(() => {
         const grouped = {};
         images.forEach(img => {
-            const cat = img.category || 'Diğer';
-            const sub = img.subcategory || 'Genel';
+            let cat = img.category || 'Diğer';
+            if (!CATEGORIES.includes(cat)) cat = 'Diğer';
             if (!grouped[cat]) grouped[cat] = {};
+            
+            // Normalize subcategory matching to prevent duplication
+            let sub = img.subcategory || 'Genel';
+            const validSubs = SUBCATEGORIES[cat] || [];
+            const matchedSub = validSubs.find(s => s.toUpperCase() === sub.toUpperCase());
+            sub = matchedSub || sub.toUpperCase();
+
             if (!grouped[cat][sub]) grouped[cat][sub] = [];
             grouped[cat][sub].push(img);
         });
@@ -1675,7 +1690,8 @@ const CatalogueModal = ({ isOpen, onClose, appId, initialCategory, initialSubcat
             if (initialCategory && initialCategory !== "Anasayfa") {
                 fetched = fetched.filter(img => img.category === initialCategory);
                 if (initialSubcategory && initialSubcategory !== "Hepsi") {
-                    fetched = fetched.filter(img => img.subcategory === initialSubcategory);
+                    // Make it case-insensitive
+                    fetched = fetched.filter(img => img.subcategory && img.subcategory.toUpperCase() === initialSubcategory.toUpperCase());
                 }
             }
             
@@ -2467,7 +2483,9 @@ const StoreView = ({ products, loading, onAddToCart, cart, isOrderPreviewOpen, s
       } else {
           filtered = products.filter(p => { 
               const catMatch = p.category === activeCategory; if (!catMatch) return false; 
-              const subMatch = activeSubCategory === "Hepsi" || p.subcategory === activeSubCategory; if (!subMatch) return false; 
+              // Added Case Insensitive match logic for subcategory robustness
+              const subMatch = activeSubCategory === "Hepsi" || (p.subcategory && p.subcategory.toUpperCase() === activeSubCategory.toUpperCase()); 
+              if (!subMatch) return false; 
               if (debouncedSearchTerm.length > 0) return p.code && p.code.toLowerCase().includes(debouncedSearchTerm.toLowerCase().trim()); return true; 
           });
       }
