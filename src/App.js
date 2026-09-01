@@ -67,7 +67,7 @@ try {
   console.error("Firebase Başlatma Hatası:", error);
 }
 
-const appId = typeof __app_id !== 'undefined' ? __app_id : "sahra-kuyum-app";
+const appId = "sahra-kuyum-app";
 
 // ==========================================
 // UTILS
