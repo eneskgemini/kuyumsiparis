@@ -32,6 +32,20 @@ module.exports = {
           900: '#1B1A17',
           950: '#100F0D',
         },
+        // Sol menü (sidebar) için nötr, göz yormayan neredeyse-siyah palet
+        charcoal: {
+          50: '#F5F5F6',
+          100: '#E8E8EA',
+          200: '#D2D2D5',
+          300: '#B0B0B5',
+          400: '#86868C',
+          500: '#5C5C64',
+          600: '#45454C',
+          700: '#333338',
+          800: '#242426',
+          900: '#1A1A1C',
+          950: '#101012',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],

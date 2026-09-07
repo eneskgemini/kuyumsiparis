@@ -132,25 +132,25 @@ const StoreView = ({ products, onAddToCart, cart, setIsOrderPreviewOpen, user, s
             <div className="fixed inset-0 bg-ink-950/40 z-30 md:hidden backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
         )}
 
-        <div className={`fixed inset-y-0 left-0 z-40 w-72 bg-white dark:bg-ink-900 border-r border-stone-200 dark:border-ink-700 flex flex-col flex-shrink-0 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-            <div className="px-4 py-[18px] border-b border-stone-100 dark:border-ink-800 flex flex-col items-center">
-                <div className="w-full flex justify-end md:hidden mb-2"><button onClick={() => setIsMobileMenuOpen(false)} className="text-ink-400 hover:text-ink-700 dark:text-ink-500 dark:hover:text-ink-200"><X size={20}/></button></div>
+        <div className={`fixed inset-y-0 left-0 z-40 w-72 bg-white dark:bg-charcoal-900 border-r border-stone-200 dark:border-charcoal-700 flex flex-col flex-shrink-0 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <div className="px-4 py-[18px] border-b border-stone-100 dark:border-charcoal-800 flex flex-col items-center">
+                <div className="w-full flex justify-end md:hidden mb-2"><button onClick={() => setIsMobileMenuOpen(false)} className="text-ink-400 hover:text-ink-700 dark:text-ink-300 dark:hover:text-white"><X size={20}/></button></div>
                 <div className="w-52 h-24 flex items-center justify-center">{logoUrl ? <img src={logoUrl} className="max-w-full max-h-full w-auto h-auto object-contain" alt="logo"/> : <Star size={48} className="text-gold-500"/>}</div>
             </div>
             <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
-                <button onClick={() => handleCategoryClick("Anasayfa")} className={`sidebar-link ${activeCategory === "Anasayfa" ? 'bg-ink-900 dark:bg-ink-700 text-white dark:text-stone-50 shadow-soft' : 'text-ink-500 dark:text-ink-400 hover:bg-stone-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-gold-300'}`}><Search size={17}/> Hızlı Arama</button>
+                <button onClick={() => handleCategoryClick("Anasayfa")} className={`sidebar-link ${activeCategory === "Anasayfa" ? 'bg-ink-900 dark:bg-charcoal-700 text-white dark:text-stone-50 shadow-soft' : 'text-ink-500 dark:text-charcoal-200 hover:bg-stone-100 dark:hover:bg-charcoal-800 hover:text-ink-900 dark:hover:text-gold-300'}`}><Search size={17}/> Hızlı Arama</button>
 
                 {CATEGORIES.filter(c => c !== "Anasayfa").map(cat => (
                     <div key={cat} className="group relative">
-                        <button onClick={() => setExpandedCategory(expandedCategory === cat ? null : cat)} className={`w-full flex justify-between items-center px-4 py-3 rounded-xl text-sm font-semibold transition-all ${activeCategory === cat || expandedCategory === cat ? 'bg-gold-50 dark:bg-gold-950/30 text-gold-700 dark:text-gold-400' : 'text-ink-500 dark:text-ink-400 hover:bg-stone-100 dark:hover:bg-ink-800 hover:text-ink-900 dark:hover:text-gold-300'}`}>
+                        <button onClick={() => setExpandedCategory(expandedCategory === cat ? null : cat)} className={`w-full flex justify-between items-center px-4 py-3 rounded-xl text-sm font-semibold transition-all ${activeCategory === cat || expandedCategory === cat ? 'bg-gold-50 dark:bg-gold-950/30 text-gold-700 dark:text-gold-400' : 'text-ink-500 dark:text-charcoal-200 hover:bg-stone-100 dark:hover:bg-charcoal-800 hover:text-ink-900 dark:hover:text-gold-300'}`}>
                             <span>{cat}</span>{expandedCategory === cat ? <ChevronDown size={14}/> : <ChevronRight size={14} className="opacity-50"/>}
                         </button>
 
                         {expandedCategory === cat && SUBCATEGORIES[cat] && (
                             <div className="py-2 space-y-0.5 animate-slide-down">
                                 {SUBCATEGORIES[cat].map(sub => (
-                                    <button key={sub} onClick={(e) => { e.stopPropagation(); handleCategoryClick(cat, sub); }} className={`w-full text-left pl-10 pr-4 py-2 text-xs font-bold transition-colors flex items-center gap-2 rounded-lg ${activeSubCategory === sub && activeCategory === cat ? 'text-ink-900 dark:text-white bg-stone-100 dark:bg-ink-800' : 'text-ink-400 dark:text-stone-500 hover:text-ink-700 dark:hover:text-ink-200'}`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${activeSubCategory === sub && activeCategory === cat ? 'bg-gold-500' : 'bg-stone-300 dark:bg-ink-600'}`}></span>{sub}
+                                    <button key={sub} onClick={(e) => { e.stopPropagation(); handleCategoryClick(cat, sub); }} className={`w-full text-left pl-10 pr-4 py-2 text-xs font-bold transition-colors flex items-center gap-2 rounded-lg ${activeSubCategory === sub && activeCategory === cat ? 'text-ink-900 dark:text-white bg-stone-100 dark:bg-charcoal-800' : 'text-ink-400 dark:text-charcoal-300 hover:text-ink-700 dark:hover:text-white'}`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${activeSubCategory === sub && activeCategory === cat ? 'bg-gold-500' : 'bg-stone-300 dark:bg-charcoal-600'}`}></span>{sub}
                                     </button>
                                 ))}
                             </div>
@@ -160,36 +160,36 @@ const StoreView = ({ products, onAddToCart, cart, setIsOrderPreviewOpen, user, s
             </div>
 
             {currentUserData?.role === 'admin' && (
-                <div className="p-4 border-t border-stone-100 dark:border-ink-800">
+                <div className="p-4 border-t border-stone-100 dark:border-charcoal-800">
                     <button onClick={() => setIsAdminOpen(true)} className="btn-secondary w-full"><Settings size={16}/> Yönetim Paneli</button>
                 </div>
             )}
         </div>
 
-        <div className="flex-1 flex flex-col bg-stone-50 dark:bg-ink-950 relative overflow-hidden w-full">
-            <div className="h-16 bg-white dark:bg-ink-900 border-b border-stone-200 dark:border-ink-700 flex items-center justify-between px-4 md:px-6 shadow-soft z-10 shrink-0">
+        <div className="flex-1 flex flex-col bg-stone-50 dark:bg-charcoal-900 relative overflow-hidden w-full">
+            <div className="h-16 bg-white dark:bg-charcoal-900 border-b border-stone-200 dark:border-charcoal-800 flex items-center justify-between px-4 md:px-6 shadow-soft z-10 shrink-0">
                 <div className="flex items-center gap-2 md:gap-4 flex-1">
-                    <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 text-ink-600 dark:text-ink-300 hover:bg-stone-100 dark:hover:bg-ink-800 rounded-lg"><Menu size={22} /></button>
+                    <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 text-ink-600 dark:text-ink-300 hover:bg-stone-100 dark:hover:bg-charcoal-800 rounded-lg"><Menu size={22} /></button>
 
                     {activeCategory !== 'Anasayfa' && (
                         <div className="relative w-full max-w-xs md:max-w-md animate-slide-down">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300 dark:text-ink-500" size={17}/>
-                            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={`${activeCategory}...`} className="w-full bg-stone-100 dark:bg-ink-800 border-none rounded-full py-2 pl-10 pr-4 text-xs md:text-sm font-bold text-ink-700 dark:text-ink-200 outline-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-500/20 transition-all placeholder-ink-400 dark:placeholder-ink-500"/>
+                            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={`${activeCategory}...`} className="w-full bg-stone-100 dark:bg-charcoal-800 border-none rounded-full py-2 pl-10 pr-4 text-xs md:text-sm font-bold text-ink-700 dark:text-ink-200 outline-none focus:ring-2 focus:ring-gold-200 dark:focus:ring-gold-500/20 transition-all placeholder-ink-400 dark:placeholder-ink-500"/>
                         </div>
                     )}
 
                     {activeCategory !== 'Anasayfa' && (
                         <>
-                            <button onClick={() => onOpenCatalogue(activeCategory, activeSubCategory)} className="hidden md:flex items-center gap-2 px-4 py-2 bg-ink-900 dark:bg-ink-700 text-white dark:text-stone-50 rounded-full text-xs font-bold hover:bg-ink-800 dark:hover:bg-ink-600 transition-colors shadow-soft ml-4 animate-zoom-in"><MonitorPlay size={16} className="text-gold-400" /> Katalog Modu</button>
-                            <button onClick={() => onOpenCatalogue(activeCategory, activeSubCategory)} className="md:hidden p-2 bg-ink-900 dark:bg-ink-700 text-white dark:text-stone-50 rounded-full shadow-soft ml-2 animate-zoom-in" title="Katalog Modu"><MonitorPlay size={20} className="text-gold-400" /></button>
+                            <button onClick={() => onOpenCatalogue(activeCategory, activeSubCategory)} className="hidden md:flex items-center gap-2 px-4 py-2 bg-ink-900 dark:bg-charcoal-700 text-white dark:text-stone-50 rounded-full text-xs font-bold hover:bg-ink-800 dark:hover:bg-charcoal-600 transition-colors shadow-soft ml-4 animate-zoom-in"><MonitorPlay size={16} className="text-gold-400" /> Katalog Modu</button>
+                            <button onClick={() => onOpenCatalogue(activeCategory, activeSubCategory)} className="md:hidden p-2 bg-ink-900 dark:bg-charcoal-700 text-white dark:text-stone-50 rounded-full shadow-soft ml-2 animate-zoom-in" title="Katalog Modu"><MonitorPlay size={20} className="text-gold-400" /></button>
                         </>
                     )}
                 </div>
                 <div className="flex items-center gap-2 md:gap-4">
-                    <button onClick={() => { if (cart.length > 0) { setIsOrderPreviewOpen(true); } else { setShowEmptyCartModal(true); } }} className="relative p-2.5 bg-stone-100 hover:bg-stone-200 dark:bg-ink-800 dark:hover:bg-ink-700 rounded-full transition-colors group"><ShoppingBag size={19} className="text-ink-600 group-hover:text-ink-900 dark:text-ink-300 dark:group-hover:text-white"/>{cart.length > 0 && <span className="absolute -top-1 -right-1 bg-gold-600 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full ring-2 ring-white dark:ring-ink-900">{cart.length}</span>}</button>
+                    <button onClick={() => { if (cart.length > 0) { setIsOrderPreviewOpen(true); } else { setShowEmptyCartModal(true); } }} className="relative p-2.5 bg-stone-100 hover:bg-stone-200 dark:bg-charcoal-800 dark:hover:bg-charcoal-700 rounded-full transition-colors group"><ShoppingBag size={19} className="text-ink-600 group-hover:text-ink-900 dark:text-ink-300 dark:group-hover:text-white"/>{cart.length > 0 && <span className="absolute -top-1 -right-1 bg-gold-600 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full ring-2 ring-white dark:ring-charcoal-900">{cart.length}</span>}</button>
                     <div className="relative">
-                        <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-3 pl-2 md:pl-4 border-l border-stone-200 dark:border-ink-700 outline-none"><div className="w-8 h-8 rounded-full bg-ink-900 dark:bg-ink-700 text-white dark:text-stone-50 flex items-center justify-center font-bold text-xs overflow-hidden">{user && user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" alt="user"/> : (user && user.email && user.email[0].toUpperCase())}</div></button>
-                        {isUserMenuOpen && (<><div className="fixed inset-0 z-10" onClick={() => setIsUserMenuOpen(false)}></div><div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-ink-900 rounded-xl shadow-lift border border-stone-200 dark:border-ink-700 z-20 overflow-hidden animate-slide-down"><button onClick={() => { setIsAccountModalOpen(true); setIsUserMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-medium text-ink-600 dark:text-ink-300 hover:bg-stone-50 dark:hover:bg-ink-800 flex items-center gap-2"><User size={16}/> Hesap</button><button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2"><LogOut size={16}/> Çıkış Yap</button></div></>)}
+                        <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center gap-3 pl-2 md:pl-4 border-l border-stone-200 dark:border-charcoal-700 outline-none"><div className="w-8 h-8 rounded-full bg-ink-900 dark:bg-charcoal-700 text-white dark:text-stone-50 flex items-center justify-center font-bold text-xs overflow-hidden">{user && user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" alt="user"/> : (user && user.email && user.email[0].toUpperCase())}</div></button>
+                        {isUserMenuOpen && (<><div className="fixed inset-0 z-10" onClick={() => setIsUserMenuOpen(false)}></div><div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-charcoal-800 rounded-xl shadow-lift border border-stone-200 dark:border-charcoal-700 z-20 overflow-hidden animate-slide-down"><button onClick={() => { setIsAccountModalOpen(true); setIsUserMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-medium text-ink-600 dark:text-ink-300 hover:bg-stone-50 dark:hover:bg-charcoal-700 flex items-center gap-2"><User size={16}/> Hesap</button><button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2"><LogOut size={16}/> Çıkış Yap</button></div></>)}
                     </div>
                 </div>
             </div>
@@ -201,7 +201,7 @@ const StoreView = ({ products, onAddToCart, cart, setIsOrderPreviewOpen, user, s
                         <h2 className={`font-bold text-ink-900 dark:text-ink-100 font-serif tracking-wide transition-all duration-500 text-center ${searchTerm ? 'text-lg md:text-xl mb-1' : 'text-2xl md:text-3xl mb-2'}`}>Model Arama</h2>
                         <div className={`relative w-full transition-all duration-500 ${searchTerm ? 'max-w-4xl' : 'max-w-lg'}`}>
                             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-ink-300 dark:text-ink-500" size={22}/>
-                            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Örn: SMG..." className="w-full bg-white dark:bg-ink-900 border border-stone-200 dark:border-ink-700 rounded-full py-3 md:py-4 pl-12 md:pl-14 pr-6 text-base md:text-lg font-bold text-ink-800 dark:text-ink-100 outline-none focus:border-gold-400 focus:ring-4 focus:ring-gold-100 dark:focus:ring-gold-500/10 transition-all shadow-soft placeholder-ink-400 dark:placeholder-ink-500" autoFocus/>
+                            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Örn: SMG..." className="w-full bg-white dark:bg-charcoal-800 border border-stone-200 dark:border-charcoal-700 rounded-full py-3 md:py-4 pl-12 md:pl-14 pr-6 text-base md:text-lg font-bold text-ink-800 dark:text-ink-100 outline-none focus:border-gold-400 focus:ring-4 focus:ring-gold-100 dark:focus:ring-gold-500/10 transition-all shadow-soft placeholder-ink-400 dark:placeholder-ink-500" autoFocus/>
                         </div>
                     </div>
                 )}
@@ -214,7 +214,7 @@ const StoreView = ({ products, onAddToCart, cart, setIsOrderPreviewOpen, user, s
                             <div className="flex flex-wrap -mx-2">
                                 {Array.from({ length: 10 }).map((_, i) => (
                                     <div key={i} className="w-1/2 md:w-1/4 lg:w-1/5 p-2 box-border">
-                                        <div className="card !shadow-none aspect-square animate-pulse bg-stone-100 dark:bg-ink-800"></div>
+                                        <div className="card !shadow-none aspect-square animate-pulse bg-stone-100 dark:bg-charcoal-800"></div>
                                     </div>
                                 ))}
                             </div>
