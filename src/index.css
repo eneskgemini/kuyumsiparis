@@ -1,3 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Site artık tek, sabit bir koyu tema kullanıyor (açık/koyu geçiş yok).
+   public/index.html'de <html class="dark"> sabitlenmiş durumda; buradaki
+   dark: varyantları o yüzden her zaman aktif. */
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-stone-50 text-ink-900 font-sans dark:bg-ink-950 dark:text-ink-100;
+  }
+}
+
+@layer components {
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold text-sm transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn bg-ink-900 text-white px-5 py-3 hover:bg-ink-800 shadow-soft dark:bg-ink-700 dark:text-stone-50 dark:hover:bg-ink-600;
+  }
+  .btn-gold {
+    @apply btn bg-gradient-to-b from-gold-500 to-gold-600 text-white px-5 py-3 hover:from-gold-600 hover:to-gold-700 shadow-gold;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-ink-700 border border-stone-200 px-5 py-3 hover:bg-stone-50 hover:border-stone-300 dark:bg-ink-800 dark:text-ink-200 dark:border-ink-700 dark:hover:bg-ink-700 dark:hover:border-ink-600;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-ink-500 px-3 py-2 hover:bg-stone-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-ink-100;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white px-5 py-3 hover:bg-red-700 shadow-soft;
+  }
+  .btn-sm {
+    @apply !px-3 !py-1.5 !text-xs;
+  }
+
+  /* Surfaces */
+  .card {
+    @apply bg-white rounded-2xl border border-stone-200 shadow-soft dark:bg-ink-900 dark:border-ink-700;
+  }
+  .panel-dark {
+    @apply bg-ink-900 text-white;
+  }
+
+  /* Inputs */
+  .field {
+    @apply w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm font-medium text-ink-900 placeholder-ink-400 outline-none transition-all focus:bg-white focus:border-gold-400 focus:ring-4 focus:ring-gold-100 dark:bg-ink-800 dark:border-ink-700 dark:text-ink-100 dark:placeholder-ink-500 dark:focus:bg-ink-800 dark:focus:border-gold-500 dark:focus:ring-gold-500/10;
+  }
+  .field-label {
+    @apply block text-[11px] font-bold uppercase tracking-wide text-ink-400 mb-1.5 dark:text-ink-300;
+  }
+
+  /* Misc */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-600 dark:bg-ink-800 dark:border-ink-700 dark:text-ink-300;
+  }
+  .sidebar-link {
+    @apply w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #DDDCD8; border-radius: 999px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #C2C0B9; }
+  .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #DDDCD8 transparent; }
+
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #44423C; }
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #57544D; }
+  .dark .custom-scrollbar { scrollbar-color: #44423C transparent; }
+
+  .text-balance { text-wrap: balance; }
+}

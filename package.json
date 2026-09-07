@@ -18,7 +18,12 @@
     "react-dom": "^19.2.1",
     "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4",
-    "whatwg-fetch": "^3.6.20"
+    "whatwg-fetch": "^3.6.20",
+    "workbox-core": "^6.6.0",
+    "workbox-expiration": "^6.6.0",
+    "workbox-precaching": "^6.6.0",
+    "workbox-routing": "^6.6.0",
+    "workbox-strategies": "^6.6.0"
   },
   "scripts": {
     "start": "react-scripts start",
