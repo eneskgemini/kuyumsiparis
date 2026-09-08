@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
-import { Users, Tag, User, Store, ChevronDown, ChevronRight } from 'lucide-react';
+import { Users, Tag, User, ChevronDown, ChevronRight } from 'lucide-react';
 import AdminUserManager from './AdminUserManager';
 import AdminCategoryManager from './AdminCategoryManager';
 import AdminCustomerManager from './AdminCustomerManager';
-import AdminCompanyInfoManager from './AdminCompanyInfoManager';
 
 const SECTIONS = [
     { key: 'users', label: 'Kullanıcı ve Personel Yönetimi', icon: Users, Component: AdminUserManager, extraProps: (props) => ({ currentUid: props.currentUid }) },
     { key: 'categories', label: 'Kategori ve Alt Kategori Yönetimi', icon: Tag, Component: AdminCategoryManager, extraProps: () => ({}) },
     { key: 'customers', label: 'Müşteriler', icon: User, Component: AdminCustomerManager, extraProps: () => ({}) },
-    { key: 'company', label: 'Firma Bilgileri', icon: Store, Component: AdminCompanyInfoManager, extraProps: () => ({}) },
 ];
 
 const AdminSettings = ({ setNotification, currentUid }) => {

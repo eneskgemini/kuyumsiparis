@@ -92,35 +92,36 @@ const SalesCalendar = ({ orders, selectedDate, onDateChange, onViewOrder }) => {
     );
 };
 
-const MonthlyPerformanceView = ({ orders, selectedDate }) => {
+const MonthlyPerformanceView = ({ orders, selectedDate, onViewOrder }) => {
     const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
     const currentDate = selectedDate || new Date();
 
     const monthlyStats = useMemo(() => {
         let totalGram = 0;
         let orderCount = 0;
-        const categoryStats = {};
+        const deliveredOrders = [];
 
         orders.forEach(order => {
             if(order.status === 'delivered' && order.createdAt && order.createdAt.seconds) {
                 const date = new Date(order.createdAt.seconds * 1000);
                 if (date.getMonth() === currentDate.getMonth() && date.getFullYear() === currentDate.getFullYear()) {
                     orderCount += 1;
+                    let orderGram = 0;
                     if(order.items) {
                         order.items.forEach(i => {
-                            const gram = (parseGram(i.gram) * (parseInt(i.quantity) || 1));
-                            totalGram += gram;
-                            const cat = i.category || 'Diğer';
-                            if (!categoryStats[cat]) categoryStats[cat] = { count: 0, gram: 0 };
-                            categoryStats[cat].count += (parseInt(i.quantity) || 1);
-                            categoryStats[cat].gram += gram;
+                            orderGram += (parseGram(i.gram) * (parseInt(i.quantity) || 1));
                         });
                     }
+                    totalGram += orderGram;
+                    const dateLabel = `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
+                    deliveredOrders.push({ order, gram: orderGram, time: date.getTime(), dateLabel });
                 }
             }
         });
 
-        return { totalGram, orderCount, categoryStats };
+        deliveredOrders.sort((a, b) => b.time - a.time);
+
+        return { totalGram, orderCount, deliveredOrders };
     }, [orders, currentDate]);
 
     return (
@@ -128,7 +129,7 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
             <div className="p-3 bg-stone-50 dark:bg-ink-800 border-b border-stone-200 dark:border-ink-700 shrink-0">
                 <h3 className="font-bold text-ink-700 dark:text-ink-200 flex items-center gap-2 text-sm">
                     <Activity size={17} className="text-gold-500"/>
-                    {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()} Performansı
+                    {monthNames[currentDate.getMonth()]} ayında teslim edilen siparişler
                 </h3>
             </div>
             <div className="p-4 md:p-6 flex-1 min-h-0 flex flex-col gap-3 md:gap-4">
@@ -144,25 +145,25 @@ const MonthlyPerformanceView = ({ orders, selectedDate }) => {
                 </div>
 
                 <div className="flex-1 min-h-0 flex flex-col border-t border-stone-100 dark:border-ink-800 pt-3">
-                    <h4 className="font-bold text-ink-600 dark:text-ink-300 text-sm mb-3 shrink-0">Kategori Dağılımı</h4>
-                    <div className="space-y-3 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
-                    {Object.entries(monthlyStats.categoryStats).length > 0 ? (
-                        Object.entries(monthlyStats.categoryStats)
-                        .sort((a, b) => b[1].gram - a[1].gram)
-                        .map(([cat, stats]) => (
-                            <div key={cat} className="flex items-center justify-between text-sm border-b border-stone-100 dark:border-ink-800 pb-2">
-                                <div className="flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-ink-300"></span>
-                                    <span className="font-medium text-ink-700 dark:text-ink-200">{cat}</span>
-                                    <span className="text-xs text-ink-400 dark:text-ink-500">({stats.count} adet)</span>
-                                </div>
-                                <div className="font-bold text-ink-900 dark:text-ink-100">{stats.gram.toFixed(2)} gr</div>
-                            </div>
-                        ))
+                    {monthlyStats.deliveredOrders.length > 0 ? (
+                        <div className="space-y-1 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
+                            {monthlyStats.deliveredOrders.map(({ order, gram, dateLabel }) => (
+                                <button
+                                    key={order.id}
+                                    onClick={() => onViewOrder && onViewOrder(order)}
+                                    className="w-full flex items-center justify-between py-2 text-sm border-b border-stone-100 dark:border-ink-800 hover:bg-stone-50 dark:hover:bg-ink-800 rounded-lg px-1.5 -mx-1.5 transition-colors text-left"
+                                >
+                                    <span className="flex items-center gap-1.5 min-w-0">
+                                        <span className="capitalize text-ink-600 dark:text-ink-300 truncate">{order.customerName ? order.customerName.toLowerCase() : 'İsimsiz'}</span>
+                                        <span className="text-xs text-ink-300 dark:text-ink-600 shrink-0">({dateLabel})</span>
+                                    </span>
+                                    <span className="font-bold text-ink-900 dark:text-ink-100 shrink-0 ml-2">{gram.toFixed(2)} gr</span>
+                                </button>
+                            ))}
+                        </div>
                     ) : (
-                        <div className="text-center text-ink-400 dark:text-ink-500 py-4 text-sm italic">Bu ay henüz teslimat yok.</div>
+                        <div className="flex-1 min-h-0 flex items-center justify-center text-center text-ink-400 dark:text-ink-500 text-sm italic">Bu ay henüz teslimat yok.</div>
                     )}
-                    </div>
                 </div>
             </div>
         </div>
@@ -233,6 +234,7 @@ const AdminDashboard = ({ products, orders, dashboardDate, setDashboardDate, onV
                 <MonthlyPerformanceView
                     orders={orders}
                     selectedDate={dashboardDate}
+                    onViewOrder={onViewOrder}
                 />
             </div>
         </div>

@@ -25,7 +25,8 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   const [orderNo, setOrderNo] = useState(""); 
   const [stampType, setStampType] = useState('text'); 
   const [editableItems, setEditableItems] = useState([]);
-  const [globalColor, setGlobalColor] = useState(""); 
+  const [globalColor, setGlobalColor] = useState("");
+  const [bulkQty, setBulkQty] = useState("");
 
   const isDraft = initialData && initialData.status === 'draft';
   const isViewingOldOrder = !!initialData;
@@ -155,6 +156,18 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
       setEditableItems(prev => sortByCode(prev));
   }, []);
 
+  // Kutuya yazılan TEK sayıyı, kodu (modeli) girilmiş her satıra aynı adet
+  // olarak uygular (ör. "5" yazılınca kodu dolu tüm satırların adedi 5 olur).
+  // Boş (kodu yazılmamış) satırlara dokunulmaz.
+  const applyBulkQuantities = () => {
+      const n = parseInt(bulkQty, 10);
+      if (isNaN(n) || n <= 0) return;
+      setEditableItems(prev => prev.map(item => (
+          item.code && item.code.toString().trim() !== "" ? Object.assign({}, item, { quantity: n }) : item
+      )));
+      setBulkQty("");
+  };
+
   const handleLocalRemove = (index) => { const item = editableItems[index]; if (!isViewingOldOrder && item && item.cartId) { onRemoveItem(item.cartId); } setEditableItems(prev => { const n = [...prev]; n[index] = { code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `cleared_${Date.now()}_${Math.random()}` }; return n; }); };
   
   const updateAllItems = (field, value) => {
@@ -262,6 +275,21 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                                     </div>
                                 </div>
                             )}
+                            {isEditable && (
+                                <div className="no-print bg-stone-50 p-3 rounded-xl border border-stone-200 mt-2 flex items-center gap-2">
+                                    <span className="text-xs font-bold text-ink-600 shrink-0">Tümünün Adedi:</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={bulkQty}
+                                        onChange={(e) => setBulkQty(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyBulkQuantities(); } }}
+                                        placeholder="Örn: 5 (kodu girilmiş tüm modellere uygulanır)"
+                                        className="p-2 border rounded text-sm flex-1 text-black bg-white"
+                                    />
+                                    <button type="button" onClick={applyBulkQuantities} className="btn-secondary !py-2 !px-3 text-xs shrink-0">Uygula</button>
+                                </div>
+                            )}
                         </>
                     )}
                 </div>
@@ -280,7 +308,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                                         autoComplete="off"
                                         className="w-full text-center bg-transparent outline-none font-bold text-black"
                                         value={item.code}
-                                        onChange={(e) => handleItemUpdate(globalIndex, 'code', e.target.value)}
+                                        onChange={(e) => handleItemUpdate(globalIndex, 'code', e.target.value.toUpperCase())}
                                         onBlur={sortItemsByCode}
                                     />
                                 )} 
