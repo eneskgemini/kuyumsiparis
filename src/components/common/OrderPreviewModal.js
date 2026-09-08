@@ -2,8 +2,20 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Printer, X, Paperclip, Plus } from 'lucide-react';
 import { KARAT_OPTIONS, COLOR_OPTIONS, DEFAULT_LOGO_URL } from '../../utils/constants';
 import { parseGram, processFile, naturalSort } from '../../utils/helpers';
+import { useCompanyInfo } from '../../hooks/useCompanyInfo';
 
-const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, onCreateOrder, products, onUpdateOrder, draftData, setDraftData, logoUrl }) => {
+// Dolu satırları ürün koduna göre doğal/numara sırasına dizer (ör. "AS-B 7"
+// her zaman "AS-B 10"'dan önce gelir), boş satırları en sonda bırakır.
+// Sepetten eklenen, taslaktan gelen veya mevcut siparişten açılan ürün
+// listeleri de dahil, listenin her oluşturulduğu yerde kullanılır.
+const sortByCode = (items) => {
+    const filled = items.filter(i => i.code && i.code.toString().trim() !== "");
+    const empty = items.filter(i => !i.code || i.code.toString().trim() === "");
+    return [...filled.sort(naturalSort), ...empty];
+};
+
+const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, onCreateOrder, products, onUpdateOrder, draftData, setDraftData, logoUrl, customers }) => {
+  const companyInfo = useCompanyInfo();
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [orderKarat, setOrderKarat] = useState(""); 
@@ -18,6 +30,27 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   const isDraft = initialData && initialData.status === 'draft';
   const isViewingOldOrder = !!initialData;
   const isEditable = !initialData || isDraft;
+
+  // Yazılan firma adı, Ayarlar > Müşteriler'de kayıtlı bir müşteriyle
+  // eşleşiyorsa sipariş numarası "KOD-XXX" biçiminde otomatik önerilir
+  // (kesin/atomik numara App.js -> handleCheckout içinde, sipariş
+  // kaydedilirken üretilir). Mevcut bir siparişi görüntülerken/düzenlerken
+  // numara yeniden üretilmesin diye bu sadece yeni sipariş oluştururken çalışır.
+  const matchedCustomer = useMemo(() => {
+      if (isViewingOldOrder || !customers || !customerName) return null;
+      const target = customerName.trim().toLowerCase();
+      if (!target) return null;
+      return customers.find(c => c.nameLower === target) || null;
+  }, [customers, customerName, isViewingOldOrder]);
+
+  useEffect(() => {
+      if (matchedCustomer) {
+          const preview = `${matchedCustomer.code}-${String((matchedCustomer.orderCount || 0) + 1).padStart(3, '0')}`;
+          setOrderNo(preview);
+          updateDraft('customOrderNo', preview);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchedCustomer]);
 
   const orderStats = useMemo(() => {
     const realItems = editableItems.filter(i => i.code && i.code.toString().trim() !== "" && i.category);
@@ -46,7 +79,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
     if (initialData) {
         setCustomerName(initialData.customerName || ""); setCustomerPhone(initialData.customerPhone || ""); setOrderNo(initialData.customOrderNo || "");
         
-        setEditableItems((initialData.items || []).map((item, idx) => {
+        setEditableItems(sortByCode((initialData.items || []).map((item, idx) => {
             let img = item.imageUrl;
             if (!img && products) {
                 const codeToFind = item.code ? item.code.toString().trim().toLowerCase() : "";
@@ -54,7 +87,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                 if (p) img = p.imageUrl;
             }
             return Object.assign({}, item, { _tempId: idx, imageUrl: img || logoUrl });
-        }));
+        })));
 
         setOrderStamp(initialData.orderStamp || ""); setStampType(initialData.orderStamp && initialData.orderStamp.startsWith('data:image') ? 'image' : 'text');
         if(initialData.createdAt && initialData.createdAt.seconds) setOrderDate(new Date(initialData.createdAt.seconds * 1000).toISOString().split('T')[0]);
@@ -67,10 +100,10 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
             initialItems = cart.map((item, idx) => Object.assign({}, item, { _tempId: idx, imageUrl: item.imageUrl || logoUrl })); 
         } else if (draftData && draftData.items && draftData.items.length > 0) { 
             initialItems = draftData.items.map(item => Object.assign({}, item, { imageUrl: item.imageUrl || logoUrl })); 
-        } else { 
-            initialItems = Array.from({ length: 12 }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `manual_${i}` })); 
+        } else {
+            initialItems = Array.from({ length: 12 }).map((_, i) => ({ code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `manual_${i}` }));
         }
-        setEditableItems(initialItems);
+        setEditableItems(sortByCode(initialItems));
     }
   }, [initialData, cart, isOpen, logoUrl, products]);
   
@@ -119,12 +152,7 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
   // satırlar her zaman en sonda kalır. Yazarken değil, sadece yazmayı
   // bitirince sıralanır - böylece daktilo yazarken satır zıplamaz.
   const sortItemsByCode = useCallback(() => {
-      setEditableItems(prev => {
-          const filled = prev.filter(i => i.code && i.code.toString().trim() !== "");
-          const empty = prev.filter(i => !i.code || i.code.toString().trim() === "");
-          const sortedFilled = [...filled].sort(naturalSort);
-          return [...sortedFilled, ...empty];
-      });
+      setEditableItems(prev => sortByCode(prev));
   }, []);
 
   const handleLocalRemove = (index) => { const item = editableItems[index]; if (!isViewingOldOrder && item && item.cartId) { onRemoveItem(item.cartId); } setEditableItems(prev => { const n = [...prev]; n[index] = { code: "", quantity: 1, gram: "", selectedSize: "", selectedKarat: "", selectedColor: "", note: "", imageUrl: logoUrl, _tempId: `cleared_${Date.now()}_${Math.random()}` }; return n; }); };
@@ -174,8 +202,11 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                 <div className="mb-2 page-header-content">
                     <div className="flex justify-between items-start mb-4">
                         <div className="w-3/4">
-                            <h1 className="text-4xl font-bold tracking-widest text-black uppercase">SAHRA</h1>
-                            <p className="text-xl font-bold text-gold-600 tracking-[0.3em] uppercase mt-1">KUYUMCULUK</p>
+                            <h1 className="text-4xl font-bold tracking-widest text-black uppercase">{companyInfo.name || 'SAHRA'}</h1>
+                            <p className="text-xl font-bold text-gold-600 tracking-[0.3em] uppercase mt-1">{companyInfo.subtitle || 'KUYUMCULUK'}</p>
+                            {(companyInfo.phone || companyInfo.address) && (
+                                <p className="text-[9px] text-black mt-0.5">{[companyInfo.phone, companyInfo.address].filter(Boolean).join('  ·  ')}</p>
+                            )}
                         </div>
                         <div className="border border-black p-2 rounded text-right bg-white">
                             <div className="text-[10px] font-bold mb-1 leading-tight text-black">
@@ -210,8 +241,14 @@ const OrderPreviewModal = ({ cart, isOpen, onClose, onRemoveItem, initialData, o
                             {isEditable && (
                                 <div className="no-print bg-gold-50 p-3 rounded-xl border border-gold-200 mt-2 relative grid grid-cols-2 gap-3 shadow-inner">
                                     <div className="flex flex-col gap-2">
-                                        <input value={customerName} onChange={e=>{setCustomerName(e.target.value.toUpperCase()); updateDraft('customerName', e.target.value);}} placeholder="FİRMA ADI *" className="p-2 border rounded font-bold text-sm w-full text-black bg-white"/>
+                                        <input list="registered-customers-list" value={customerName} onChange={e=>{setCustomerName(e.target.value.toUpperCase()); updateDraft('customerName', e.target.value);}} placeholder="FİRMA ADI *" className="p-2 border rounded font-bold text-sm w-full text-black bg-white"/>
+                                        {customers && customers.length > 0 && (
+                                            <datalist id="registered-customers-list">
+                                                {customers.map(c => <option key={c.id} value={c.name} />)}
+                                            </datalist>
+                                        )}
                                         <input value={orderNo} onChange={e=>{setOrderNo(e.target.value); updateDraft('customOrderNo', e.target.value);}} placeholder="SİPARİŞ NO" className="p-2 border rounded font-bold text-sm w-full text-black bg-white"/>
+                                        {matchedCustomer && <span className="text-[10px] text-emerald-700 font-bold -mt-1">Otomatik önerildi ({matchedCustomer.name} için {(matchedCustomer.orderCount || 0) + 1}. sipariş) — istersen değiştirebilirsin</span>}
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <div className="flex gap-2">

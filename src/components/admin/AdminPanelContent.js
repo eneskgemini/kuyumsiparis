@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef, Suspense, lazy } from 'react';
-import { doc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import React, { useState, useCallback, useEffect, useRef, Suspense, lazy } from 'react';
+import { doc, updateDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { LogOut, LayoutDashboard, Box, ClipboardList, Image as ImageIcon, Sparkles, MessageSquare, Settings, Store, Loader2 } from 'lucide-react';
 import { db, auth } from '../../config/firebase';
@@ -33,7 +33,7 @@ const NAV_ITEMS = [
     { key: 'settings', label: 'Ayarlar', icon: Settings },
 ];
 
-const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, onClose, handleDeleteProduct, handleUpdateStatus, setNotification, onCreateNewOrder, onViewOrder, handleDeleteOrder, logoUrl, handleUpdateLogo }) => {
+const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, onClose, handleDeleteProduct, handleUpdateStatus, setNotification, onCreateNewOrder, onViewOrder, handleDeleteOrder, logoUrl }) => {
     const getAdminParams = () => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -48,6 +48,72 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
     const [isLoading, setIsLoading] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const scrollContainerRef = useRef(null);
+    const seenMessageIds = useRef(new Set());
+    const isFirstMessagesSnapshot = useRef(true);
+
+    // Tarayıcı bildirim izni: sayfa ilk açıldığında bir kere sorulur.
+    useEffect(() => {
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission().catch(() => {});
+        }
+    }, []);
+
+    // Kısa, hoş bir "ding" sesi — dosya gerektirmeden Web Audio API ile üretiliyor.
+    const playMessageSound = () => {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const now = ctx.currentTime;
+            [880, 1320].forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                const start = now + i * 0.12;
+                gain.gain.setValueAtTime(0, start);
+                gain.gain.linearRampToValueAtTime(0.25, start + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, start + 0.25);
+                osc.connect(gain).connect(ctx.destination);
+                osc.start(start);
+                osc.stop(start + 0.3);
+            });
+            setTimeout(() => { ctx.close().catch(() => {}); }, 800);
+        } catch (e) { console.error('[Mesaj sesi] Çalınamadı:', e); }
+    };
+
+    // Yeni mesaj geldiğinde (hangi sekmede olursa olsun, admin paneli açıkken)
+    // tarayıcı bildirimi göster ve ses çal. Mesajlar sekmesine girmeye gerek yok.
+    useEffect(() => {
+        if (!user || !user.uid) return;
+        seenMessageIds.current = new Set();
+        isFirstMessagesSnapshot.current = true;
+        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), where('receiverId', '==', user.uid));
+        const unsub = onSnapshot(q, (snap) => {
+            if (isFirstMessagesSnapshot.current) {
+                // İlk yüklemede mevcut mesaj geçmişini "zaten görülmüş" say;
+                // yalnızca bundan sonra gelen yeni mesajlar bildirim tetikler.
+                snap.docs.forEach(d => seenMessageIds.current.add(d.id));
+                isFirstMessagesSnapshot.current = false;
+                return;
+            }
+            snap.docChanges().forEach((change) => {
+                if (change.type !== 'added' || seenMessageIds.current.has(change.doc.id)) return;
+                seenMessageIds.current.add(change.doc.id);
+                const m = change.doc.data();
+                playMessageSound();
+                try {
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        const title = m.senderName || 'Yeni Mesaj';
+                        const body = m.type === 'image' ? '📷 Görsel gönderildi' : m.type === 'file' ? `📎 ${m.fileName || 'Dosya gönderildi'}` : (m.content || 'Yeni mesaj');
+                        const notif = new Notification(title, { body, icon: logoUrl || DEFAULT_LOGO_URL, tag: 'sahra-message-' + change.doc.id });
+                        notif.onclick = () => { window.focus(); };
+                    }
+                } catch (e) { console.error('[Mesaj bildirimi] Gösterilemedi:', e); }
+            });
+        }, (err) => console.error('[Mesaj bildirimi] Dinlenemedi:', err));
+        return () => unsub();
+    }, [user, appId, logoUrl]);
 
     const handleLogout = async () => {
         if (currentUserProfile && currentUserProfile.uid) {
@@ -71,11 +137,6 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
 
     const handleDrag = (e) => { e.preventDefault(); e.stopPropagation(); if (e.type === "dragenter" || e.type === "dragover") { setDragActive(true); } else if (e.type === "dragleave") { setDragActive(false); } };
     const handleDrop = (e) => { e.preventDefault(); e.stopPropagation(); setDragActive(false); if (e.dataTransfer.files && e.dataTransfer.files[0]) { setNewProduct(Object.assign({}, newProduct, { imageFile: e.dataTransfer.files[0] })); } };
-
-    const handleLogoUpload = async (e) => {
-        const file = e.target.files[0];
-        if (file) { try { const { url } = await uploadImageToStorage(file, 'logo'); await handleUpdateLogo(url); setNotification({type: 'success', message: 'Logo güncellendi'}); } catch (err) { setNotification({type: 'error', message: 'Logo güncellenemedi: ' + err.message}); } }
-    };
 
     const handleAddProduct = async (e) => {
         e.preventDefault();
@@ -124,13 +185,13 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 relative custom-scrollbar" ref={scrollContainerRef}>
-                {activeTab === 'dashboard' && <AdminDashboard products={products} orders={orders} dashboardDate={dashboardDate} setDashboardDate={setDashboardDate} />}
+                {activeTab === 'dashboard' && <AdminDashboard products={products} orders={orders} dashboardDate={dashboardDate} setDashboardDate={setDashboardDate} onViewOrder={onViewOrder} />}
                 {activeTab === 'products' && <AdminProductManager products={products} editingId={editingId} startEditing={startEditing} cancelEditing={cancelEditing} handleDeleteProduct={handleDeleteProduct} handleAddProduct={handleAddProduct} newProduct={newProduct} setNewProduct={setNewProduct} dragActive={dragActive} handleDrag={handleDrag} handleDrop={handleDrop} isLoading={isLoading} logoUrl={logoUrl} />}
                 {activeTab === 'orders' && <AdminOrderManager orders={orders} onCreateNewOrder={onCreateNewOrder} onViewOrder={onViewOrder} handleUpdateStatus={handleUpdateStatus} handleDeleteOrder={handleDeleteOrder} />}
                 {activeTab === 'catalogue' && <AdminCatalogueManager appId={appId} setNotification={setNotification} />}
                 {activeTab === 'social' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-ink-900 dark:text-ink-100 mb-4">Stüdyo</h2><Suspense fallback={<TabLoading />}><AIStudio setNotification={setNotification} /></Suspense></div>}
                 {activeTab === 'messages' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-ink-900 dark:text-ink-100 mb-4">Mesajlar</h2><Suspense fallback={<TabLoading />}><MessagingModule appId={appId} currentUserProfile={currentUserProfile} /></Suspense></div>}
-                {activeTab === 'settings' && <AdminSettings logoUrl={logoUrl} handleLogoUpload={handleLogoUpload} />}
+                {activeTab === 'settings' && <AdminSettings setNotification={setNotification} currentUid={user.uid} />}
             </div>
         </div>
     );

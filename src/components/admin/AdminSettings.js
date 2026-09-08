@@ -1,17 +1,39 @@
-import React from 'react';
-import { DEFAULT_LOGO_URL } from '../../utils/constants';
+import React, { useState } from 'react';
+import { Users, Tag, User, Store, ChevronDown, ChevronRight } from 'lucide-react';
+import AdminUserManager from './AdminUserManager';
+import AdminCategoryManager from './AdminCategoryManager';
+import AdminCustomerManager from './AdminCustomerManager';
+import AdminCompanyInfoManager from './AdminCompanyInfoManager';
 
-const AdminSettings = ({ logoUrl, handleLogoUpload }) => (
-    <div className="space-y-6 animate-slide-up max-w-2xl">
-        <h2 className="text-2xl font-bold text-ink-900 dark:text-ink-100">Ayarlar</h2>
-        <div className="card p-6">
-            <h3 className="font-bold text-ink-700 dark:text-ink-200 mb-4">Mağaza Logosu</h3>
-            <div className="flex items-center gap-6">
-                <div className="w-24 h-24 bg-stone-50 dark:bg-ink-800 border-2 border-stone-100 dark:border-ink-800 rounded-2xl flex items-center justify-center overflow-hidden"><img src={logoUrl || DEFAULT_LOGO_URL} alt="Logo" className="w-full h-full object-contain" /></div>
-                <div><label className="block mb-2 text-sm text-ink-600 dark:text-ink-300 font-bold">Yeni Logo Yükle</label><input type="file" accept="image/png, image/jpeg" onChange={handleLogoUpload} className="block w-full text-sm text-ink-500 dark:text-ink-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gold-50 dark:bg-gold-950/20 file:text-gold-700 dark:text-gold-400 hover:file:bg-gold-100 file:transition-colors"/><p className="text-[11px] text-ink-400 dark:text-ink-500 mt-2">Önerilen boyut: 512x512px (PNG)</p></div>
+const SECTIONS = [
+    { key: 'users', label: 'Kullanıcı ve Personel Yönetimi', icon: Users, Component: AdminUserManager, extraProps: (props) => ({ currentUid: props.currentUid }) },
+    { key: 'categories', label: 'Kategori ve Alt Kategori Yönetimi', icon: Tag, Component: AdminCategoryManager, extraProps: () => ({}) },
+    { key: 'customers', label: 'Müşteriler', icon: User, Component: AdminCustomerManager, extraProps: () => ({}) },
+    { key: 'company', label: 'Firma Bilgileri', icon: Store, Component: AdminCompanyInfoManager, extraProps: () => ({}) },
+];
+
+const AdminSettings = ({ setNotification, currentUid }) => {
+    const [openSection, setOpenSection] = useState(null);
+
+    const toggle = (key) => setOpenSection(prev => (prev === key ? null : key));
+
+    return (
+        <div className="space-y-6 animate-slide-up max-w-3xl">
+            <h2 className="text-2xl font-bold text-ink-900 dark:text-ink-100">Ayarlar</h2>
+
+            <div className="space-y-3">
+                {SECTIONS.map(({ key, label, icon: Icon, Component, extraProps }) => (
+                    <div key={key}>
+                        <button onClick={() => toggle(key)} className="w-full card p-4 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-ink-800 transition-colors">
+                            <span className="font-bold text-ink-800 dark:text-ink-100 flex items-center gap-2 text-sm"><Icon size={17} className="text-gold-500"/> {label}</span>
+                            {openSection === key ? <ChevronDown size={18} className="text-ink-400"/> : <ChevronRight size={18} className="text-ink-400"/>}
+                        </button>
+                        {openSection === key && <div className="mt-3"><Component setNotification={setNotification} {...extraProps({ currentUid })} /></div>}
+                    </div>
+                ))}
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 export default AdminSettings;

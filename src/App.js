@@ -1,7 +1,7 @@
 /* global __initial_auth_token */
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { signInWithEmailAndPassword, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 
 // Config & Utils
 import { auth, db } from './config/firebase';
@@ -38,6 +38,7 @@ const App = () => {
     const [products, setProducts] = useState([]);
     const [productsLoaded, setProductsLoaded] = useState(false);
     const [orders, setOrders] = useState([]);
+    const [customers, setCustomers] = useState([]);
     const [cart, setCart] = useState([]);
     const [notification, setNotification] = useState(null);
     const [isOrderPreviewOpen, setIsOrderPreviewOpen] = useState(false);
@@ -91,13 +92,16 @@ const App = () => {
         if (!user) return;
         const unsubProducts = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => { setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setProductsLoaded(true); }, () => setProductsLoaded(true));
         const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snap) => setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+        // Kayıtlı müşteriler (Ayarlar > Müşteriler): sipariş oluştururken firma
+        // adı otomatik tamamlama ve "KOD-XXX" otomatik sipariş numarası için.
+        const unsubCustomers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'customers'), (snap) => setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
         const unsubUser = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'app_users', user.uid), (docSnap) => { if (docSnap.exists()) setCurrentUserData(docSnap.data()); });
         // Mağaza logosu daha önce kaydedilmişse (Ayarlar'dan yüklenmişse) sayfa
         // her açıldığında/yenilendiğinde Firestore'dan geri okunur. Eskiden bu
         // okuma hiç yapılmıyordu, bu yüzden yenilemede eski varsayılan logoya
         // dönüyordu - sadece o an yüklendiği oturumda hafızada kalıyordu.
         const unsubSettings = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'general'), (docSnap) => { if (docSnap.exists() && docSnap.data().logoUrl) setLogoUrl(docSnap.data().logoUrl); });
-        return () => { unsubProducts(); unsubOrders(); unsubUser(); unsubSettings(); };
+        return () => { unsubProducts(); unsubOrders(); unsubCustomers(); unsubUser(); unsubSettings(); };
     }, [user]);
 
     const handleAdminLogin = async (e) => { e.preventDefault(); try { await signInWithEmailAndPassword(auth, e.target.email.value, e.target.password.value); setNotification({type:'success', message:'Giriş başarılı'}); } catch (err) { setNotification({type:'error', message:'Giriş başarısız: ' + err.message}); } };
@@ -113,17 +117,40 @@ const App = () => {
             let creationTime = serverTimestamp();
             if (finalOrderDate && finalOrderDate !== new Date().toISOString().split('T')[0]) { creationTime = new Date(finalOrderDate); }
 
+            // Firma adı, Ayarlar > Müşteriler'de kayıtlı bir müşteriyle eşleşiyorsa
+            // (taslak hariç) o müşterinin sipariş sayacını burada, kaydetme anında,
+            // atomik bir işlemle 1 artırıyoruz — bir sonraki sipariş için önerilen
+            // numara doğru olsun diye. Kaydedilecek sipariş numarası her zaman
+            // formda ne yazıyorsa odur (otomatik önerilen "KOD-XXX" olsun ya da
+            // admin elle değiştirmiş olsun, dokunulmuyor).
+            const finalOrderNo = orderNo;
+            if (targetStatus !== 'draft' && name) {
+                const matched = customers.find(c => c.nameLower === name.trim().toLowerCase());
+                if (matched) {
+                    try {
+                        await runTransaction(db, async (tx) => {
+                            const custRef = doc(db, 'artifacts', appId, 'public', 'data', 'customers', matched.id);
+                            const custSnap = await tx.get(custRef);
+                            const currentCount = (custSnap.exists() && custSnap.data().orderCount) || 0;
+                            tx.update(custRef, { orderCount: currentCount + 1 });
+                        });
+                    } catch (txErr) {
+                        console.error('[Müşteri sayaç] Sipariş sayacı güncellenemedi:', txErr);
+                    }
+                }
+            }
+
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), {
                 customerName: name, customerPhone: phone, totalNote: note, items: itemsToSave,
                 createdAt: creationTime, status: targetStatus, deliveryDate: deliveryDate,
-                orderKarat: karat, customOrderNo: orderNo, orderStamp: orderStamp, createdBy: user.uid
+                orderKarat: karat, customOrderNo: finalOrderNo, orderStamp: orderStamp, createdBy: user.uid
             });
 
             if (targetStatus !== 'draft') { setOrderKarat(null); setDraftData({ customerName: "", orderKarat: "", orderStamp: "", orderDate: new Date().toISOString().split('T')[0], deliveryDate: "", customOrderNo: "", customerPhone: "", stampType: 'text', items: [] }); }
             setIsOrderPreviewOpen(false);
             setNotification({ type: 'success', message: targetStatus === 'draft' ? "Taslak kaydedildi!" : "Sipariş oluşturuldu!" });
         } catch (error) { setNotification({ type: 'error', message: "Hata: " + error.message }); }
-    }, [cart, user]);
+    }, [cart, user, customers]);
 
     const handleUpdateOrder = useCallback(async (orderId, data) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), data); setIsOrderPreviewOpen(false); setViewingOrder(null); setNotification({type:'success', message:'Sipariş güncellendi'}); } catch (error) { setNotification({type:'error', message: error.message}); } }, []);
     const handleDeleteProduct = useCallback(async (id) => { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id)); setNotification({type:'success', message:'Ürün silindi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, []);
@@ -136,7 +163,7 @@ const App = () => {
             <>
                 {notification && <CustomNotification type={notification.type} message={notification.message} onClose={()=>setNotification(null)} />}
                 <PrintStyles />
-                {(isOrderPreviewOpen || viewingOrder) && <OrderPreviewModal cart={cart} isOpen={isOrderPreviewOpen} onClose={() => { setIsOrderPreviewOpen(false); setViewingOrder(null); }} onRemoveItem={removeFromCart} initialData={viewingOrder} products={products} onUpdateOrder={handleUpdateOrder} onCreateOrder={handleCheckout} draftData={draftData} setDraftData={setDraftData} logoUrl={logoUrl} />}
+                {(isOrderPreviewOpen || viewingOrder) && <OrderPreviewModal cart={cart} isOpen={isOrderPreviewOpen} onClose={() => { setIsOrderPreviewOpen(false); setViewingOrder(null); }} onRemoveItem={removeFromCart} initialData={viewingOrder} products={products} onUpdateOrder={handleUpdateOrder} onCreateOrder={handleCheckout} draftData={draftData} setDraftData={setDraftData} logoUrl={logoUrl} customers={customers} />}
                 <div className="screen-only">
                     <Suspense fallback={<AdminLoadingScreen />}>
                         <AdminPanelContent user={user} currentUserProfile={user} appId={appId} products={products} orders={orders} onClose={() => setIsAdminOpen(false)} handleDeleteProduct={handleDeleteProduct} handleUpdateStatus={handleUpdateStatus} setNotification={setNotification} onCreateNewOrder={() => { setCart([]); setViewingOrder(null); setIsOrderPreviewOpen(true); }} onViewOrder={(order) => { setViewingOrder(order); setIsOrderPreviewOpen(true); }} handleDeleteOrder={handleDeleteOrder} logoUrl={logoUrl} handleUpdateLogo={handleUpdateLogo} />
@@ -158,7 +185,7 @@ const App = () => {
             <CatalogueModal isOpen={isCatalogueOpen} onClose={() => setIsCatalogueOpen(false)} appId={appId} initialCategory={catalogueParams.category} initialSubcategory={catalogueParams.subcategory} />
         </div>
 
-        <OrderPreviewModal cart={cart} isOpen={isOrderPreviewOpen && !viewingOrder} onClose={() => setIsOrderPreviewOpen(false)} onRemoveItem={removeFromCart} onCreateOrder={handleCheckout} products={products} initialData={null} draftData={draftData} setDraftData={setDraftData} logoUrl={logoUrl} />
+        <OrderPreviewModal cart={cart} isOpen={isOrderPreviewOpen && !viewingOrder} onClose={() => setIsOrderPreviewOpen(false)} onRemoveItem={removeFromCart} onCreateOrder={handleCheckout} products={products} initialData={null} draftData={draftData} setDraftData={setDraftData} logoUrl={logoUrl} customers={customers} />
         </div>
     );
 };

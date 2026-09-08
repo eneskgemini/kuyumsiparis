@@ -62,6 +62,11 @@ const AdminOrderManager = ({ orders, onCreateNewOrder, onViewOrder, handleUpdate
                     ))}
             </div>
             <div className="flex-1 overflow-y-auto custom-scrollbar">
+                {filteredOrders.length === 0 && (
+                    <div className="text-center py-14 text-ink-400 dark:text-ink-500 bg-stone-50 dark:bg-ink-800 rounded-xl border border-dashed border-stone-300 dark:border-ink-600 text-sm">
+                        Şu an siparişimiz yok.
+                    </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {filteredOrders.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).map(order => (
                         <div key={order.id} className="relative card p-5 hover:shadow-lift transition-shadow">

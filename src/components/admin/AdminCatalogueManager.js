@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { Upload, X, Trash, Loader2, Check, Image as ImageIcon } from 'lucide-react';
 import { db } from '../../config/firebase';
-import { CATEGORIES, SUBCATEGORIES } from '../../utils/constants';
 import { uploadImageToStorage } from '../../utils/helpers';
+import { useCategories } from '../../hooks/useCategories';
 import CollapsibleSection from '../common/CollapsibleSection';
 
 const AdminCatalogueManager = ({ appId, setNotification }) => {
+    const { categories: CATEGORIES, subcategories: SUBCATEGORIES } = useCategories();
     const [images, setImages] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState("Yüzük");
@@ -40,7 +41,7 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
             grouped[cat][sub].push(img);
         });
         return grouped;
-    }, [images]);
+    }, [images, CATEGORIES, SUBCATEGORIES]);
 
     const handleDrag = (e) => {
         e.preventDefault();

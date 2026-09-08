@@ -2,8 +2,8 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Box, Pencil, Trash, Upload, Save, Plus, RefreshCcw } from 'lucide-react';
 import ConfirmationModal from '../common/ConfirmationModal';
 import CollapsibleSection from '../common/CollapsibleSection';
-import { CATEGORIES, SUBCATEGORIES } from '../../utils/constants';
 import { naturalSort } from '../../utils/helpers';
+import { useCategories } from '../../hooks/useCategories';
 
 const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDeleteClick }) => {
     const [displayCount, setDisplayCount] = useState(12);
@@ -38,6 +38,7 @@ const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDel
 });
 
 const AdminProductManager = ({ products, editingId, startEditing, cancelEditing, handleDeleteProduct, handleAddProduct, newProduct, setNewProduct, dragActive, handleDrag, handleDrop, isLoading, logoUrl }) => {
+    const { categories: CATEGORIES, subcategories: SUBCATEGORIES } = useCategories();
     const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, productId: null });
 
     const openDeleteModal = useCallback((id) => {
@@ -69,7 +70,7 @@ const AdminProductManager = ({ products, editingId, startEditing, cancelEditing,
             grouped[cat][sub].push(p);
         });
         return grouped;
-    }, [products]);
+    }, [products, CATEGORIES, SUBCATEGORIES]);
 
     return (
         <div className="space-y-6 animate-slide-up">

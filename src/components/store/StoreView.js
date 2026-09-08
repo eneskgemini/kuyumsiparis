@@ -3,13 +3,15 @@ import { signOut } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import { Search, ShoppingBag, User, LogOut, Menu, MonitorPlay, ChevronDown, ChevronRight, Star, X, AlertTriangle, Settings, Key, Mail, Loader2 } from 'lucide-react';
 import { auth, db } from '../../config/firebase';
-import { CATEGORIES, SUBCATEGORIES, appId } from '../../utils/constants';
+import { appId } from '../../utils/constants';
 import { useDebounce, naturalSort } from '../../utils/helpers';
+import { useCategories } from '../../hooks/useCategories';
 import Pagination from '../common/Pagination';
 import ProductCard from './ProductCard';
 import UserProfileModal from './UserProfileModal';
 
 const StoreView = ({ products, onAddToCart, cart, setIsOrderPreviewOpen, user, setIsAdminOpen, onLogin, currentUserData, logoUrl, onOpenCatalogue, setSelectedProduct, productsLoaded }) => {
+  const { categories: CATEGORIES, subcategories: SUBCATEGORIES } = useCategories();
   const [activeCategory, setActiveCategory] = useState("Anasayfa");
   const [activeSubCategory, setActiveSubCategory] = useState("Hepsi");
   const [expandedCategory, setExpandedCategory] = useState(null);
@@ -67,8 +69,8 @@ const StoreView = ({ products, onAddToCart, cart, setIsOrderPreviewOpen, user, s
         </div>
 
         <div className="relative z-10 w-full max-w-sm flex flex-col items-center text-center">
-            <div className={`mb-6 rounded-full bg-white dark:bg-ink-900 border border-stone-200 dark:border-ink-700 shadow-lift flex items-center justify-center transition-all duration-500 ${loginStep === 'form' ? 'w-16 h-16' : 'w-24 h-24'}`}>
-                {logoUrl ? <img src={logoUrl} alt="Sahra" className={`object-contain transition-all duration-500 ${loginStep === 'form' ? 'w-10 h-10' : 'w-14 h-14'}`} /> : <Star size={40} className="text-gold-500" />}
+            <div className={`mb-6 rounded-full bg-white dark:bg-ink-900 border border-stone-200 dark:border-ink-700 shadow-lift flex items-center justify-center transition-all duration-500 ${loginStep === 'form' ? 'w-24 h-24' : 'w-40 h-40'}`}>
+                {logoUrl ? <img src={logoUrl} alt="Sahra" className={`object-contain transition-all duration-500 ${loginStep === 'form' ? 'w-24 h-24' : 'w-40 h-40'}`} /> : <Star size={40} className="text-gold-500" />}
             </div>
 
             {loginStep === 'welcome' && (
