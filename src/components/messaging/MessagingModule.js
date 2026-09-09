@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { collection, query, orderBy, onSnapshot, writeBatch, doc, addDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, writeBatch, doc, addDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { Users, ChevronLeft, Trash, X, FileUp, Download, CheckCheck, Check, Loader2, Paperclip, Send, FileText } from 'lucide-react';
 import { db, storage } from '../../config/firebase';
@@ -36,18 +36,63 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
         return false;
     };
 
+    // ÖNEMLİ (Eylül 2026 fatura sıçraması sonrası düzeltildi): Eskiden burada
+    // TÜM "messages" koleksiyonu (yani sistemdeki HERKESİN tüm yazışması,
+    // filtresiz) tek bir onSnapshot ile çekilip sonra sadece bu kullanıcıyı
+    // ilgilendirenler İSTEMCİ TARAFINDA filtreleniyordu. Bu, mesaj geçmişi
+    // büyüdükçe (resim/dosya ekleri dahil) bu sekme her açıldığında/panel her
+    // yenilendiğinde binlerce gereksiz Firestore okumasına yol açıyordu - bir
+    // günde 50.000'lik ücretsiz kotayı 98.000 okuma aşarak faturaya yansıdı.
+    // Şimdi Firestore'a sorguyu SUNUCU tarafında filtreletiyoruz (sadece
+    // gönderdiklerim + sadece bana gelenler), iki ayrı dinleyiciyle çekip
+    // burada birleştiriyoruz. Sonuç tamamen aynı, ama artık her kullanıcı
+    // sadece kendi yazışmasını okuyor.
     useEffect(() => {
         const unsubUsers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'app_users'), (snap) => {
             const fetchedUsers = snap.docs.map(d => Object.assign({id:d.id}, d.data())).filter(u => u.uid !== currentUserProfile.uid);
             const uniqueUsers = Array.from(new Map(fetchedUsers.map(u => [u.email, u])).values());
             setUsers(uniqueUsers);
         });
-        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), orderBy('createdAt', 'asc'));
-        const unsubMsgs = onSnapshot(q, (snap) => {
-            setMessages(snap.docs.map(d => Object.assign({id:d.id}, d.data())).filter(m => (m.senderId === currentUserProfile.uid) || (m.receiverId === currentUserProfile.uid)));
+
+        const tsValue = (t) => {
+            if (!t) return Infinity; // henüz sunucu zaman damgası atanmamış (yeni gönderilmiş) - en sona koy
+            if (typeof t.toMillis === 'function') return t.toMillis();
+            if (t.seconds != null) return t.seconds * 1000 + (t.nanoseconds || 0) / 1e6;
+            return Infinity;
+        };
+
+        const sentMap = new Map();
+        const receivedMap = new Map();
+        const mergeAndSet = () => {
+            const all = [...sentMap.values(), ...receivedMap.values()];
+            all.sort((a, b) => tsValue(a.createdAt) - tsValue(b.createdAt));
+            setMessages(all);
+        };
+
+        const qSent = query(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), where('senderId', '==', currentUserProfile.uid));
+        const qReceived = query(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), where('receiverId', '==', currentUserProfile.uid));
+        const unsubSent = onSnapshot(qSent, (snap) => {
+            sentMap.clear();
+            snap.docs.forEach(d => sentMap.set(d.id, Object.assign({ id: d.id }, d.data())));
+            mergeAndSet();
         });
-        return () => { unsubUsers(); unsubMsgs(); };
-    }, [appId, currentUserProfile]);
+        const unsubReceived = onSnapshot(qReceived, (snap) => {
+            receivedMap.clear();
+            snap.docs.forEach(d => receivedMap.set(d.id, Object.assign({ id: d.id }, d.data())));
+            mergeAndSet();
+        });
+
+        return () => { unsubUsers(); unsubSent(); unsubReceived(); };
+    // Bilerek sadece currentUserProfile.uid'e bağlı: App.js'te "çevrimiçi"
+    // kalmak için her 2 dakikada bir çalışan sayaç, currentUserProfile
+    // nesnesini (lastLogin değiştiği için) her seferinde YENİ bir referansla
+    // günceller. Bağımlılık tüm nesne olsaydı, bu dinleyiciler her 2
+    // dakikada bir gereksiz yere kapanıp yeniden açılır, her açılışta da
+    // mesajlar yeniden okunurdu (asıl fatura sıçramasının sebebi buydu).
+    // Burada gerçekten ihtiyaç duyulan tek şey uid - o değişmediği sürece
+    // dinleyicileri yeniden kurmaya gerek yok.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [appId, currentUserProfile.uid]);
 
     useEffect(() => {
         if (selectedUser && messages.length > 0) {
@@ -127,14 +172,21 @@ const MessagingModule = ({ appId, currentUserProfile }) => {
     // silinmesini engellemesin diye.
     const deleteAttachmentIfAny = async (m) => {
         const fileUrl = (m && (m.imageUrl || m.fileUrl)) || null;
-        if (!fileUrl) return;
-        try { await deleteObject(ref(storage, fileUrl)); } catch (e) { console.warn("Storage dosyası silinemedi:", e); }
+        if (!fileUrl) { console.log("[Storage] Bu mesajda dosya yok, atlanıyor.", m); return; }
+        console.log("[Storage] Siliniyor:", fileUrl);
+        try {
+            await deleteObject(ref(storage, fileUrl));
+            console.log("[Storage] Silindi ✔");
+        } catch (e) {
+            console.warn("[Storage] Silinemedi ✘", e.code || e.message, e);
+        }
     };
 
     const executeDelete = async () => {
         try {
             if (deleteConfig.type === 'single' && deleteConfig.id) {
                 const target = messages.find(m => m.id === deleteConfig.id);
+                console.log("[Storage] Silinecek mesaj:", target);
                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'messages', deleteConfig.id));
                 await deleteAttachmentIfAny(target);
             }
