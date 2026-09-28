@@ -54,6 +54,15 @@
   .field {
     @apply w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm font-medium text-ink-900 placeholder-ink-400 outline-none transition-all focus:bg-white focus:border-gold-400 focus:ring-4 focus:ring-gold-100 dark:bg-ink-800 dark:border-ink-700 dark:text-ink-100 dark:placeholder-ink-500 dark:focus:bg-ink-800 dark:focus:border-gold-500 dark:focus:ring-gold-500/10;
   }
+  /* select kutularının sağındaki, işletim sisteminin (Windows'un) kendi çizdiği
+     çirkin/tema dışı ok butonunu kaldırıp yerine tema rengine uygun ince bir
+     ok ikonu koyuyoruz. */
+  select.field {
+    @apply appearance-none bg-no-repeat pr-10 cursor-pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2396938A'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+    background-position: right 0.75rem center;
+    background-size: 1rem 1rem;
+  }
   .field-label {
     @apply block text-[11px] font-bold uppercase tracking-wide text-ink-400 mb-1.5 dark:text-ink-300;
   }

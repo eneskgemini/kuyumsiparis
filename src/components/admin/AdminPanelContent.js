@@ -1,12 +1,13 @@
 import React, { useState, useCallback, useEffect, useRef, Suspense, lazy } from 'react';
 import { doc, updateDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { LogOut, LayoutDashboard, Box, ClipboardList, Image as ImageIcon, Sparkles, MessageSquare, Settings, Store, Loader2 } from 'lucide-react';
+import { LogOut, LayoutDashboard, Box, ClipboardList, Image as ImageIcon, Sparkles, MessageSquare, Settings, Store, Loader2, CheckSquare, X, Trash } from 'lucide-react';
 import { db, auth } from '../../config/firebase';
 import { DEFAULT_LOGO_URL } from '../../utils/constants';
 import { uploadImageToStorage } from '../../utils/helpers';
 
 // Alt Bileşen İçe Aktarımları
+import ConfirmationModal from '../common/ConfirmationModal';
 import AdminDashboard from './AdminDashboard';
 import AdminProductManager from './AdminProductManager';
 import AdminOrderManager from './AdminOrderManager';
@@ -33,7 +34,7 @@ const NAV_ITEMS = [
     { key: 'settings', label: 'Ayarlar', icon: Settings },
 ];
 
-const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, onClose, handleDeleteProduct, handleUpdateStatus, setNotification, onCreateNewOrder, onViewOrder, handleDeleteOrder, logoUrl }) => {
+const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, onClose, handleDeleteProduct, handleDeleteMultipleProducts, handleUpdateStatus, setNotification, onCreateNewOrder, onViewOrder, handleDeleteOrder, logoUrl }) => {
     const getAdminParams = () => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -50,6 +51,50 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
     const scrollContainerRef = useRef(null);
     const seenMessageIds = useRef(new Set());
     const isFirstMessagesSnapshot = useRef(true);
+
+    // "Ürün Yönetimi" başlığı (Seç / Toplam Ürün çubuğu) BİLEREK burada, scroll
+    // olan alanın DIŞINDA tutuluyor (aşağıdaki JSX'te ayrı bir "flex-shrink-0"
+    // kutu içinde). Önceden bu başlık AdminProductManager'ın içindeydi ve
+    // "position: sticky" ile en üstte tutulmaya çalışılıyordu, ama bazı
+    // durumlarda (tarayıcı/OS'e göre) ürün kartları yine de başlığın üstünden
+    // geçiyormuş gibi görünüyordu. Başlığı fiziksel olarak scroll edilen
+    // alanın dışına çıkarınca bu sorun kökten imkansız hale geliyor - artık
+    // hiçbir şey onun "üstünde" render olamaz, çünkü aynı kaydırılabilir
+    // kutunun içinde değil.
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState(() => new Set());
+    const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+
+    useEffect(() => {
+        if (activeTab !== 'products') {
+            setSelectionMode(false);
+            setSelectedIds(new Set());
+        }
+    }, [activeTab]);
+
+    const toggleSelectionMode = useCallback(() => {
+        setSelectionMode(prev => {
+            if (prev) setSelectedIds(new Set());
+            return !prev;
+        });
+    }, []);
+
+    const toggleSelect = useCallback((id) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    }, []);
+
+    const executeBulkDelete = useCallback(() => {
+        if (selectedIds.size > 0 && handleDeleteMultipleProducts) {
+            handleDeleteMultipleProducts(Array.from(selectedIds));
+        }
+        setSelectedIds(new Set());
+        setSelectionMode(false);
+        setBulkDeleteConfirmOpen(false);
+    }, [selectedIds, handleDeleteMultipleProducts]);
 
     // Tarayıcı bildirim izni: sayfa ilk açıldığında bir kere sorulur.
     useEffect(() => {
@@ -184,14 +229,52 @@ const AdminPanelContent = ({ user, currentUserProfile, appId, products, orders, 
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 relative custom-scrollbar" ref={scrollContainerRef}>
-                {activeTab === 'dashboard' && <AdminDashboard products={products} orders={orders} dashboardDate={dashboardDate} setDashboardDate={setDashboardDate} onViewOrder={onViewOrder} />}
-                {activeTab === 'products' && <AdminProductManager products={products} editingId={editingId} startEditing={startEditing} cancelEditing={cancelEditing} handleDeleteProduct={handleDeleteProduct} handleAddProduct={handleAddProduct} newProduct={newProduct} setNewProduct={setNewProduct} dragActive={dragActive} handleDrag={handleDrag} handleDrop={handleDrop} isLoading={isLoading} logoUrl={logoUrl} />}
-                {activeTab === 'orders' && <AdminOrderManager orders={orders} onCreateNewOrder={onCreateNewOrder} onViewOrder={onViewOrder} handleUpdateStatus={handleUpdateStatus} handleDeleteOrder={handleDeleteOrder} />}
-                {activeTab === 'catalogue' && <AdminCatalogueManager appId={appId} setNotification={setNotification} />}
-                {activeTab === 'social' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-ink-900 dark:text-ink-100 mb-4">Stüdyo</h2><Suspense fallback={<TabLoading />}><AIStudio setNotification={setNotification} /></Suspense></div>}
-                {activeTab === 'messages' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-ink-900 dark:text-ink-100 mb-4">Mesajlar</h2><Suspense fallback={<TabLoading />}><MessagingModule appId={appId} currentUserProfile={currentUserProfile} /></Suspense></div>}
-                {activeTab === 'settings' && <AdminSettings setNotification={setNotification} currentUid={user.uid} />}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {activeTab === 'products' && (
+                    <div className="p-4 md:p-8 pb-0 flex-shrink-0">
+                        <ConfirmationModal
+                            isOpen={bulkDeleteConfirmOpen}
+                            onClose={() => setBulkDeleteConfirmOpen(false)}
+                            onConfirm={executeBulkDelete}
+                            title="Seçili Ürünleri Sil"
+                            message={`${selectedIds.size} ürünü silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`}
+                        />
+                        <div className="card p-4 flex flex-col md:flex-row justify-between items-center mb-2 gap-4">
+                            <h2 className="text-2xl font-bold text-ink-900 dark:text-ink-100 flex items-center gap-2"><Box className="text-gold-500"/> Ürün Yönetimi</h2>
+                            <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+                                {selectionMode ? (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-bold text-ink-500 dark:text-ink-400">{selectedIds.size} seçili</span>
+                                        <button
+                                            onClick={() => setBulkDeleteConfirmOpen(true)}
+                                            disabled={selectedIds.size === 0}
+                                            className="btn-danger py-2 px-3 text-sm flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            <Trash size={14}/> Seçilenleri Sil
+                                        </button>
+                                        <button onClick={toggleSelectionMode} className="btn-secondary py-2 px-3 text-sm flex items-center gap-1.5">
+                                            <X size={14}/> Vazgeç
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button onClick={toggleSelectionMode} className="btn-secondary py-2 px-3 text-sm flex items-center gap-1.5">
+                                        <CheckSquare size={14}/> Seç
+                                    </button>
+                                )}
+                                <div className="text-right"><div className="text-xs font-bold text-ink-400 dark:text-ink-500 uppercase tracking-wide">Toplam Ürün</div><div className="text-2xl font-bold text-ink-900 dark:text-ink-100">{products.length} <span className="text-sm font-semibold text-ink-400 dark:text-ink-500">Adet</span></div></div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 relative custom-scrollbar" ref={scrollContainerRef}>
+                    {activeTab === 'dashboard' && <AdminDashboard products={products} orders={orders} dashboardDate={dashboardDate} setDashboardDate={setDashboardDate} onViewOrder={onViewOrder} />}
+                    {activeTab === 'products' && <AdminProductManager products={products} editingId={editingId} startEditing={startEditing} cancelEditing={cancelEditing} handleDeleteProduct={handleDeleteProduct} handleAddProduct={handleAddProduct} newProduct={newProduct} setNewProduct={setNewProduct} dragActive={dragActive} handleDrag={handleDrag} handleDrop={handleDrop} isLoading={isLoading} logoUrl={logoUrl} selectionMode={selectionMode} selectedIds={selectedIds} onToggleSelect={toggleSelect} />}
+                    {activeTab === 'orders' && <AdminOrderManager orders={orders} onCreateNewOrder={onCreateNewOrder} onViewOrder={onViewOrder} handleUpdateStatus={handleUpdateStatus} handleDeleteOrder={handleDeleteOrder} />}
+                    {activeTab === 'catalogue' && <AdminCatalogueManager appId={appId} setNotification={setNotification} />}
+                    {activeTab === 'social' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-ink-900 dark:text-ink-100 mb-4">Stüdyo</h2><Suspense fallback={<TabLoading />}><AIStudio setNotification={setNotification} /></Suspense></div>}
+                    {activeTab === 'messages' && <div className="h-full pb-10"><h2 className="text-2xl font-bold text-ink-900 dark:text-ink-100 mb-4">Mesajlar</h2><Suspense fallback={<TabLoading />}><MessagingModule appId={appId} currentUserProfile={currentUserProfile} /></Suspense></div>}
+                    {activeTab === 'settings' && <AdminSettings setNotification={setNotification} currentUid={user.uid} />}
+                </div>
             </div>
         </div>
     );

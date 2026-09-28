@@ -172,7 +172,7 @@ const AdminCatalogueManager = ({ appId, setNotification }) => {
                         {selectedFile && previewUrl ? (
                             <div className="relative w-full h-full p-2 flex flex-col items-center justify-center">
                                 <img src={previewUrl} className="h-32 object-contain mb-2 shadow-sm rounded bg-white dark:bg-ink-900" alt="Önizleme" />
-                                <div className="text-xs font-bold text-ink-700 dark:text-ink-200 bg-white/80 px-2 py-1 rounded">{selectedFile.name}</div>
+                                <div className="text-xs font-bold text-ink-800 bg-white/90 px-2 py-1 rounded max-w-full truncate">{selectedFile.name}</div>
                                 <button onClick={(e) => { e.stopPropagation(); cancelSelection(); }} className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 transition-colors shadow-md">
                                     <X size={16} />
                                 </button>

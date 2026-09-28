@@ -1,31 +1,45 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Box, Pencil, Trash, Upload, Save, Plus, RefreshCcw } from 'lucide-react';
+import { Pencil, Trash, Upload, Save, Plus, RefreshCcw, Check } from 'lucide-react';
 import ConfirmationModal from '../common/ConfirmationModal';
 import CollapsibleSection from '../common/CollapsibleSection';
 import { naturalSort } from '../../utils/helpers';
 import { useCategories } from '../../hooks/useCategories';
 
-const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDeleteClick }) => {
+const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDeleteClick, selectionMode, selectedIds, onToggleSelect }) => {
     const [displayCount, setDisplayCount] = useState(12);
     const visibleItems = useMemo(() => items.slice(0, displayCount), [items, displayCount]);
 
     return (
         <div>
             <div className="p-2 flex flex-wrap -mx-1">
-                {visibleItems.map(product => (
+                {visibleItems.map(product => {
+                    const isSelected = selectedIds && selectedIds.has(product.id);
+                    return (
                     <div key={product.id} className="w-1/3 md:w-1/4 lg:w-1/6 p-1 relative box-border">
-                        <div className={`group relative bg-white dark:bg-ink-900 border rounded-xl p-2 hover:shadow-lift transition-all ${editingId === product.id ? 'ring-2 ring-gold-400 border-gold-300' : 'border-stone-200 dark:border-ink-700'}`}>
+                        <div
+                            onClick={selectionMode ? () => onToggleSelect(product.id) : undefined}
+                            className={`group relative bg-white dark:bg-ink-900 border rounded-xl p-2 hover:shadow-lift transition-all ${selectionMode ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-blue-500 border-blue-400' : editingId === product.id ? 'ring-2 ring-gold-400 border-gold-300' : 'border-stone-200 dark:border-ink-700'}`}
+                        >
                             <div className="aspect-square bg-stone-100 dark:bg-ink-800 rounded-lg mb-2 overflow-hidden relative">
-                                <img src={product.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" alt={product.code} />
+                                <img src={product.imageUrl} className={`w-full h-full object-cover transition-transform duration-500 ${!selectionMode ? 'group-hover:scale-110' : ''} ${isSelected ? 'opacity-70' : ''}`} loading="lazy" alt={product.code} />
+                                {selectionMode && (
+                                    <span className={`absolute top-1.5 left-1.5 w-5 h-5 rounded-full flex items-center justify-center border-2 ${isSelected ? 'bg-blue-500 border-blue-500' : 'bg-black/30 border-white'}`}>
+                                        {isSelected && <Check size={13} className="text-white" strokeWidth={3} />}
+                                    </span>
+                                )}
                             </div>
                             <div className="font-bold text-xs truncate text-ink-900 dark:text-ink-100">{product.code}</div>
                             <div className="text-[10px] text-ink-500 dark:text-ink-400 font-bold">{product.gram} gr</div>
 
-                            <button onClick={() => startEditing(product)} className="absolute top-1 right-8 bg-blue-500 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-blue-600" title="Düzenle"><Pencil size={12}/></button>
-                            <button onClick={() => onDeleteClick(product.id)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600" title="Sil"><Trash size={12}/></button>
+                            {!selectionMode && (
+                                <>
+                                    <button onClick={(e) => { e.stopPropagation(); startEditing(product); }} className="absolute top-1 right-8 bg-blue-500 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-blue-600" title="Düzenle"><Pencil size={12}/></button>
+                                    <button onClick={(e) => { e.stopPropagation(); onDeleteClick(product.id); }} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600" title="Sil"><Trash size={12}/></button>
+                                </>
+                            )}
                         </div>
                     </div>
-                ))}
+                );})}
             </div>
             {items.length > displayCount && (
                 <div className="flex justify-center mt-2 pb-2 gap-2">
@@ -37,7 +51,7 @@ const PaginatedProductGrid = React.memo(({ items, editingId, startEditing, onDel
     );
 });
 
-const AdminProductManager = ({ products, editingId, startEditing, cancelEditing, handleDeleteProduct, handleAddProduct, newProduct, setNewProduct, dragActive, handleDrag, handleDrop, isLoading, logoUrl }) => {
+const AdminProductManager = ({ products, editingId, startEditing, cancelEditing, handleDeleteProduct, handleAddProduct, newProduct, setNewProduct, dragActive, handleDrag, handleDrop, isLoading, logoUrl, selectionMode, selectedIds, onToggleSelect }) => {
     const { categories: CATEGORIES, subcategories: SUBCATEGORIES } = useCategories();
     const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, productId: null });
 
@@ -82,11 +96,6 @@ const AdminProductManager = ({ products, editingId, startEditing, cancelEditing,
                 message="Bu ürünü silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
             />
 
-            <div className="card p-4 flex flex-col md:flex-row justify-between items-center mb-2 gap-4">
-                <h2 className="text-2xl font-bold text-ink-900 dark:text-ink-100 flex items-center gap-2"><Box className="text-gold-500"/> Ürün Yönetimi</h2>
-                <div className="text-right w-full md:w-auto"><div className="text-xs font-bold text-ink-400 dark:text-ink-500 uppercase tracking-wide">Toplam Ürün</div><div className="text-2xl font-bold text-ink-900 dark:text-ink-100">{products.length} <span className="text-sm font-semibold text-ink-400 dark:text-ink-500">Adet</span></div></div>
-            </div>
-
             <div className={`card p-6 ${editingId ? 'border-blue-200 ring-2 ring-blue-100' : ''}`}>
                 {editingId && <div className="mb-4 text-sm font-bold text-blue-600 flex items-center gap-2"><Pencil size={16}/> Şu an bir ürünü düzenliyorsunuz</div>}
                 <form onSubmit={handleAddProduct} className="flex flex-col gap-4">
@@ -113,7 +122,7 @@ const AdminProductManager = ({ products, editingId, startEditing, cancelEditing,
                         <div className="space-y-2 mt-2">
                             {Object.entries(subcategories).sort(([subA], [subB]) => subA.localeCompare(subB, undefined, { numeric: true, sensitivity: 'base' })).map(([subcategory, items]) => (
                                 <CollapsibleSection key={subcategory} title={subcategory} count={items.length} level={1}>
-                                    <PaginatedProductGrid items={items} editingId={editingId} startEditing={startEditing} onDeleteClick={openDeleteModal} />
+                                    <PaginatedProductGrid items={items} editingId={editingId} startEditing={startEditing} onDeleteClick={openDeleteModal} selectionMode={selectionMode} selectedIds={selectedIds} onToggleSelect={onToggleSelect} />
                                 </CollapsibleSection>
                             ))}
                         </div>

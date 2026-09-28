@@ -1,7 +1,7 @@
 /* global __initial_auth_token */
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { signInWithEmailAndPassword, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, runTransaction, writeBatch } from 'firebase/firestore';
 
 // Config & Utils
 import { auth, db } from './config/firebase';
@@ -154,6 +154,25 @@ const App = () => {
 
     const handleUpdateOrder = useCallback(async (orderId, data) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), data); setIsOrderPreviewOpen(false); setViewingOrder(null); setNotification({type:'success', message:'Sipariş güncellendi'}); } catch (error) { setNotification({type:'error', message: error.message}); } }, []);
     const handleDeleteProduct = useCallback(async (id) => { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id)); setNotification({type:'success', message:'Ürün silindi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, []);
+    // Ürün Yönetimi'nde "iPhone Fotoğraflar" tarzı çoklu seçim ile toplu silme
+    // için: tek tek deleteDoc çağırıp N tane bildirim göstermek yerine, hepsini
+    // tek bir writeBatch'te birleştirip tek seferde siliyoruz - tek bildirim,
+    // tek ağ isteği.
+    const handleDeleteMultipleProducts = useCallback(async (ids) => {
+        if (!ids || ids.length === 0) return;
+        try {
+            // Firestore tek bir batch'te en fazla 500 işlem kabul ediyor -
+            // pratikte hiç aşılmaz ama yine de 500'lük parçalara bölüyoruz.
+            const chunkSize = 500;
+            for (let i = 0; i < ids.length; i += chunkSize) {
+                const chunk = ids.slice(i, i + chunkSize);
+                const batch = writeBatch(db);
+                chunk.forEach(id => batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'products', id)));
+                await batch.commit();
+            }
+            setNotification({ type: 'success', message: `${ids.length} ürün silindi` });
+        } catch (err) { setNotification({ type: 'error', message: err.message }); }
+    }, []);
     const handleUpdateStatus = useCallback(async (orderId, status) => { try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { status }); setNotification({type:'success', message:'Durum güncellendi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, []);
     const handleDeleteOrder = useCallback(async (orderId) => { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId)); setNotification({type:'success', message:'Sipariş silindi'}); } catch(err) { setNotification({type:'error', message:err.message}); } }, []);
     const handleOpenCatalogue = (category, subcategory) => { setCatalogueParams({ category, subcategory }); setIsCatalogueOpen(true); };
@@ -166,7 +185,7 @@ const App = () => {
                 {(isOrderPreviewOpen || viewingOrder) && <OrderPreviewModal cart={cart} isOpen={isOrderPreviewOpen} onClose={() => { setIsOrderPreviewOpen(false); setViewingOrder(null); }} onRemoveItem={removeFromCart} initialData={viewingOrder} products={products} onUpdateOrder={handleUpdateOrder} onCreateOrder={handleCheckout} draftData={draftData} setDraftData={setDraftData} logoUrl={logoUrl} customers={customers} />}
                 <div className="screen-only">
                     <Suspense fallback={<AdminLoadingScreen />}>
-                        <AdminPanelContent user={user} currentUserProfile={user} appId={appId} products={products} orders={orders} onClose={() => setIsAdminOpen(false)} handleDeleteProduct={handleDeleteProduct} handleUpdateStatus={handleUpdateStatus} setNotification={setNotification} onCreateNewOrder={() => { setCart([]); setViewingOrder(null); setIsOrderPreviewOpen(true); }} onViewOrder={(order) => { setViewingOrder(order); setIsOrderPreviewOpen(true); }} handleDeleteOrder={handleDeleteOrder} logoUrl={logoUrl} handleUpdateLogo={handleUpdateLogo} />
+                        <AdminPanelContent user={user} currentUserProfile={user} appId={appId} products={products} orders={orders} onClose={() => setIsAdminOpen(false)} handleDeleteProduct={handleDeleteProduct} handleDeleteMultipleProducts={handleDeleteMultipleProducts} handleUpdateStatus={handleUpdateStatus} setNotification={setNotification} onCreateNewOrder={() => { setCart([]); setViewingOrder(null); setIsOrderPreviewOpen(true); }} onViewOrder={(order) => { setViewingOrder(order); setIsOrderPreviewOpen(true); }} handleDeleteOrder={handleDeleteOrder} logoUrl={logoUrl} handleUpdateLogo={handleUpdateLogo} />
                     </Suspense>
                 </div>
             </>
